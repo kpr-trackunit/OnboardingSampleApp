@@ -13,8 +13,9 @@ test.describe('Onboarding Dashboard', () => {
     await page.goto('/');
 
     // Verify all navigation tabs are present
-    await expect(page.locator('.tab')).toHaveCount(5);
+    await expect(page.locator('.tab')).toHaveCount(6);
     await expect(page.getByRole('button', { name: 'Dashboard' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Customers' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Customer Info' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Data Mapping' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Tenant Setup' })).toBeVisible();
@@ -25,8 +26,9 @@ test.describe('Onboarding Dashboard', () => {
     await page.goto('/');
 
     // Wait for data to load and verify example customer is shown
-    await expect(page.locator('.customer-card')).toBeVisible();
-    await expect(page.locator('.customer-card h3')).toContainText('Acme Corporation');
+    const acme = page.locator('.customer-card').filter({ hasText: 'Acme' });
+    await expect(acme).toBeVisible();
+    await expect(acme.locator('h3')).toContainText('Acme 2 Corporation');
   });
 
   test('should switch between tabs', async ({ page }) => {

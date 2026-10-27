@@ -491,6 +491,8 @@ function ImportTab() {
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [importing, setImporting] = useState(null);
+  const [result, setResult] = useState(null);
 
   useEffect(() => {
     fetch('/api/import/sources')
@@ -508,6 +510,25 @@ function ImportTab() {
         setLoading(false);
       });
   }, []);
+
+  async function runImport(source, file) {
+    const key = `${source.sourceKey}-${file.entity}`;
+    setImporting(key);
+    try {
+      const url = `/api/import/${source.sourceKey}/${file.entity}`;
+      const res = await fetch(url, { method: 'POST' });
+      const summary = await res.json();
+      if (!res.ok) throw new Error(summary.error || `HTTP ${res.status}`);
+
+      const records = await fetch(url).then(r => r.json());
+      setResult({ source, summary, records, error: null });
+    } catch (err) {
+      console.error('Import failed:', err);
+      setResult({ source, summary: { entity: file.entity }, records: [], error: err.message });
+    } finally {
+      setImporting(null);
+    }
+  }
 
   if (loading) {
     return <div className="placeholder"><p>Loading...</p></div>;
@@ -540,6 +561,7 @@ function ImportTab() {
             <th>Entity</th>
             <th>File</th>
             <th>Rows</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -549,12 +571,78 @@ function ImportTab() {
               <td>{file.entity}</td>
               <td><code>{file.filename}</code></td>
               <td>{file.rowCount} rows</td>
+              <td>
+                {file.importable ? (
+                  <button
+                    className="button"
+                    disabled={importing !== null}
+                    onClick={() => runImport(source, file)}
+                  >
+                    {importing === `${source.sourceKey}-${file.entity}` ? 'Importing...' : `Import ${file.entity}`}
+                  </button>
+                ) : (
+                  <span className="muted">No mapping yet</span>
+                )}
+              </td>
             </tr>
           )))}
         </tbody>
       </table>
+
+      {result && <ImportResult {...result} />}
     </div>
   );
+}
+
+function ImportResult({ source, summary, records, error }) {
+  if (error) {
+    return (
+      <div className="import-result">
+        <p style={{ color: '#dc2626' }}>⚠️ Failed to import {summary.entity} for {source.label}: {error}</p>
+      </div>
+    );
+  }
+
+  // Show canonical fields; picklist originals (<field>Source) appear under their standard value
+  const columns = records.length > 0
+    ? Object.keys(records[0]).filter(key => !['id', 'customerId'].includes(key) && !key.endsWith('Source'))
+    : [];
+
+  return (
+    <div className="import-result">
+      <h3>{source.label}</h3>
+      <p className="import-summary">
+        Imported {summary.imported} {summary.entity}
+        {summary.rejected > 0 && `, ${summary.rejected} rejected`}
+      </p>
+
+      <table className="data-table records-table">
+        <thead>
+          <tr>{columns.map(column => <th key={column}>{column}</th>)}</tr>
+        </thead>
+        <tbody>
+          {records.map(record => (
+            <tr key={record.id}>
+              {columns.map(column => (
+                <td key={column}>
+                  {formatValue(record[column])}
+                  {record[`${column}Source`] !== undefined && record[`${column}Source`] !== record[column] && (
+                    <div className="muted">{record[`${column}Source`]}</div>
+                  )}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function formatValue(value) {
+  if (value === null || value === undefined || value === '') return '—';
+  if (typeof value === 'boolean') return value ? 'yes' : 'no';
+  return String(value);
 }
 
 function PlaceholderTab({ title, description }) {
