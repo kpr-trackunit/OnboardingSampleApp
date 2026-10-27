@@ -79,7 +79,7 @@ test.describe('Customer Info', () => {
     await row.getByRole('button', { name: 'Edit' }).click();
 
     await row.getByLabel('Industry').fill(`  ${values.industry} `);
-    await row.getByLabel('Region').fill(values.region);
+    await row.getByLabel('Region').selectOption(values.region);
     await row.getByLabel('Contact email').fill(values.contactEmail);
 
     const saved = page.waitForResponse(r =>
@@ -116,6 +116,58 @@ test.describe('Customer Info', () => {
 
     await expect(row.locator('td[data-field="industry"]'))
       .toHaveText((xyz.industry || '').trim() || 'Missing');
+  });
+
+  test('an invalid email shows a message next to the field, and nothing is saved', async ({ page, request }) => {
+    const xyz = await findXyz(request);
+    const oldEmail = (xyz.contactEmail || '').trim() || 'Missing';
+    const oldIndustry = (xyz.industry || '').trim() || 'Missing';
+
+    await openCustomerInfo(page);
+    const row = page.locator(`.customer-info-table tbody tr[data-customer-id="${xyz.id}"]`);
+    await row.getByRole('button', { name: 'Edit' }).click();
+    await row.getByLabel('Industry').fill('Not saved either');
+    await row.getByLabel('Contact email').fill('bob@');
+
+    const saved = page.waitForResponse(r =>
+      r.url().endsWith(`/api/customers/${xyz.id}`) && r.request().method() === 'PUT');
+    await row.getByRole('button', { name: 'Save' }).click();
+    const res = await saved;
+    expect(res.status()).toBe(400);
+    expect((await res.json()).errors).toEqual({ contactEmail: 'Enter a valid email address' });
+
+    // The message is next to the email field, and the row stays in edit mode
+    const emailCell = row.locator('td[data-field="contactEmail"]');
+    await expect(emailCell.locator('.field-error')).toHaveText('Enter a valid email address');
+    await expect(row.getByLabel('Contact email')).toHaveAttribute('aria-invalid', 'true');
+    await expect(row.getByLabel('Contact email')).toHaveValue('bob@');
+    await expect(row.getByRole('button', { name: 'Save' })).toBeVisible();
+
+    // Nothing was saved: a reload still shows the old values
+    await page.reload();
+    await page.getByRole('button', { name: 'Customer Info' }).click();
+    await expect(row.locator('td[data-field="contactEmail"]')).toHaveText(oldEmail);
+    await expect(row.locator('td[data-field="industry"]')).toHaveText(oldIndustry);
+  });
+
+  test('region is a dropdown of the server\'s regions, keeping a current value that isn\'t in the list', async ({ page, request }) => {
+    const regions = await (await request.get('/api/regions')).json();
+    expect(regions).toEqual(['North America', 'EU', 'UK', 'APAC', 'LATAM']);
+
+    // Premier Bookkeeping's seeded region, "United Kingdom", isn't in the list
+    const customers = await (await request.get('/api/customers')).json();
+    const premier = customers.find(c => c.name === 'Premier Bookkeeping');
+    expect(premier, 'Premier Bookkeeping should exist').toBeTruthy();
+    expect(regions).not.toContain(premier.region);
+
+    await openCustomerInfo(page);
+    const row = page.locator(`.customer-info-table tbody tr[data-customer-id="${premier.id}"]`);
+    await row.getByRole('button', { name: 'Edit' }).click();
+
+    const select = row.getByRole('combobox', { name: 'Region' });
+    await expect(select).toHaveValue(premier.region);
+    await expect(select.locator('option')).toHaveText(['', premier.region, ...regions]);
+    await row.getByRole('button', { name: 'Cancel' }).click();
   });
 
   test('a failed save shows the error and keeps the row in edit mode', async ({ page, request }) => {

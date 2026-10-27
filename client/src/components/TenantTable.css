@@ -1,4 +1,5 @@
-.plan-select {
+.plan-select,
+.region-select {
   padding: 4px 8px;
   border: 1px solid #d1d5db;
   border-radius: 6px;
@@ -56,4 +57,25 @@
 .tenant-actions button {
   padding: 4px 12px;
   margin-right: 8px;
+}
+
+.failure-reason {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: #b91c1c;
+}
+
+.reason-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.reason-form input {
+  padding: 4px 8px;
+  min-width: 220px;
+}
+
+.tenant-actions .reason-form button {
+  margin-right: 0;
 }

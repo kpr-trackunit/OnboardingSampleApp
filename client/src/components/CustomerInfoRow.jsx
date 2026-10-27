@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
+import { useRegions, regionOptions } from '../regions';
 
 // One customer's row. Blank or whitespace-only values show "Missing".
-// Edit turns the field cells into inputs; Save sends them through onSave and,
-// if the save fails, stays in edit mode with the error shown.
+// Edit turns the field cells into inputs (region is a dropdown of the server's
+// regions); Save sends them through onSave and, if the save fails, stays in
+// edit mode with the server's message next to each invalid field.
 function CustomerInfoRow({ customer, fields, onSave }) {
+  const regions = useRegions();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({});
   const [saving, setSaving] = useState(false);
@@ -41,16 +44,18 @@ function CustomerInfoRow({ customer, fields, onSave }) {
           {editing
             ? (
               <>
-                <input
-                  type="text"
-                  aria-label={field.label}
+                <FieldInput
+                  field={field}
                   value={draft[field.key]}
-                  onChange={e => setDraft(d => ({ ...d, [field.key]: e.target.value }))}
+                  onChange={value => setDraft(d => ({ ...d, [field.key]: value }))}
                   disabled={saving}
-                  aria-invalid={fieldErrors[field.key] ? true : undefined}
+                  errorId={fieldErrors[field.key] ? `${customer.id}-${field.key}-error` : undefined}
+                  regions={regions}
                 />
                 {fieldErrors[field.key] && (
-                  <div className="field-error">{fieldErrors[field.key]}</div>
+                  <div className="field-error" id={`${customer.id}-${field.key}-error`}>
+                    {fieldErrors[field.key]}
+                  </div>
                 )}
               </>
             )
@@ -63,13 +68,41 @@ function CustomerInfoRow({ customer, fields, onSave }) {
             <>
               <button onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
               <button onClick={() => setEditing(false)} disabled={saving}>Cancel</button>
-              {error && <div className="row-error" role="alert">⚠️ {error}</div>}
+              {/* Field errors show next to their fields; this is for anything else */}
+              {error && Object.keys(fieldErrors).length === 0 && (
+                <div className="row-error" role="alert">⚠️ {error}</div>
+              )}
             </>
           )
           : <button onClick={startEditing}>Edit</button>}
       </td>
     </tr>
   );
+}
+
+// Region is a dropdown of the allowed regions plus a blank option (blank is
+// "missing", not invalid). A current value that isn't in the list is offered
+// too, so opening Edit doesn't lose it; the server rejects it on Save.
+function FieldInput({ field, value, onChange, disabled, errorId, regions }) {
+  const common = {
+    'aria-label': field.label,
+    value,
+    onChange: e => onChange(e.target.value),
+    disabled,
+    'aria-invalid': errorId ? true : undefined,
+    'aria-describedby': errorId
+  };
+  if (field.key === 'region') {
+    return (
+      <select {...common}>
+        <option value="" />
+        {regionOptions(regions, value).map(region => (
+          <option key={region} value={region}>{region}</option>
+        ))}
+      </select>
+    );
+  }
+  return <input type="text" {...common} />;
 }
 
 function FieldValue({ value }) {

@@ -14,6 +14,7 @@ process.env.CUSTOMERS_DIR = scratchDir;
 const app = require('../index');
 const store = require('../data/store');
 const customerFiles = require('../data/customerFiles');
+const { REGIONS } = require('../models');
 
 describe('PUT /api/customers/:id (Customer Info fields)', () => {
   let server;
@@ -86,11 +87,50 @@ describe('PUT /api/customers/:id (Customer Info fields)', () => {
   });
 
   it('allows clearing a field with a blank string', async () => {
-    const res = await put('cust_002', { region: '   ' });
+    const res = await put('cust_002', { region: '' });
     const customer = await res.json();
 
     assert.strictEqual(res.status, 200);
     assert.strictEqual(customer.region, '');
+  });
+
+  // Rejected updates must leave the store and the customer's file untouched
+  async function assertRejected(id, body, expectedErrors) {
+    const before = store.getCustomerById(id);
+    const fileBefore = customerFiles.loadAll().find(c => c.id === id);
+
+    const res = await put(id, body);
+    const json = await res.json();
+
+    assert.strictEqual(res.status, 400);
+    assert.deepStrictEqual(json.errors, expectedErrors);
+    assert.deepStrictEqual(store.getCustomerById(id), before);
+    assert.deepStrictEqual(customerFiles.loadAll().find(c => c.id === id), fileBefore);
+  }
+
+  it('rejects a bad email with 400 { errors: { contactEmail } } and saves nothing', async () => {
+    await assertRejected('cust_003', { industry: 'Saved?', contactEmail: 'bob@' }, {
+      contactEmail: 'Enter a valid email address'
+    });
+  });
+
+  it('rejects an unknown region with 400 { errors: { region } } and saves nothing', async () => {
+    await assertRejected('cust_003', { region: 'Mars' }, {
+      region: 'Choose one of: North America, EU, UK, APAC, LATAM'
+    });
+  });
+
+  it('rejects whitespace-only fields with 400 and saves nothing', async () => {
+    await assertRejected('cust_003', { industry: '   ', contactEmail: ' ' }, {
+      industry: 'Enter a value, or leave it blank',
+      contactEmail: 'Enter a value, or leave it blank'
+    });
+  });
+
+  it('accepts LATAM, from the shared region list', async () => {
+    const res = await put('cust_002', { region: 'LATAM' });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual((await res.json()).region, 'LATAM');
   });
 
   it('rejects non-string values with errors keyed by field, and saves nothing', async () => {
@@ -104,6 +144,12 @@ describe('PUT /api/customers/:id (Customer Info fields)', () => {
     assert.ok(body.error);
     assert.deepStrictEqual(Object.keys(body.errors).sort(), ['contactEmail', 'region']);
     assert.deepStrictEqual(store.getCustomerById(id), before);
+  });
+
+  it('GET /api/regions returns the shared region list', async () => {
+    const res = await fetch(`${baseUrl}/api/regions`);
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(await res.json(), REGIONS);
   });
 
   it('returns 404 for an unknown customer', async () => {

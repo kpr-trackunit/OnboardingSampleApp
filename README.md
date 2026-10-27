@@ -246,8 +246,10 @@ Intentionally boring and fast:
 | GET | `/api/onboarding` | Dashboard view (all states + customer info) |
 | GET | `/api/tenants/:customerId` | Get tenant by customer ID |
 | GET | `/api/import/sources` | Customer data files in `sample-data/` waiting to be imported, with row counts |
-| POST | `/api/import/:sourceKey/:entity` | Import one file (e.g. `clients`) using the customer's stored mapping |
+| POST | `/api/import/:sourceKey/:entity` | Import one file (e.g. `clients`) using the customer's stored mapping; returns the `ImportRun` with its warnings and errors |
 | GET | `/api/import/:sourceKey/:entity` | Records imported so far for a source/entity |
+
+To see import errors and warnings, start the server with `IMPORT_DATA_DIR=tests/fixtures/import`. It then reads a small ABC clients file that has a bad date, a missing name and an unmapped business type.
 
 ---
 
