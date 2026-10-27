@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import MappingView from './MappingView';
+import MappingPreview from './MappingPreview';
 import './DataMapping.css';
 
 async function getJson(url) {
@@ -97,6 +98,7 @@ function DataMappingTab() {
       )}
       {entry?.mapping && !detail && <p>Loading...</p>}
       {detail && <MappingView mapping={detail.mapping} fields={detail.fields} />}
+      {detail && <MappingPreview customerId={customerId} entity={entity} />}
     </div>
   );
 }
