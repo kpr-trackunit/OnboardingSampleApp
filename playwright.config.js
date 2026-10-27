@@ -20,6 +20,8 @@ module.exports = defineConfig({
   ],
   webServer: {
     command: 'npm start',
+    // Mounts the test-only setup routes the Import tests use (server/src/routes/testSupport.js)
+    env: { ENABLE_TEST_ROUTES: 'true' },
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
