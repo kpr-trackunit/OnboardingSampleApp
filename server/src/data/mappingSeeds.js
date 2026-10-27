@@ -115,6 +115,91 @@ function seedMappings() {
       dateFormat: 'DD-MM-YYYY',
       dateFormatDetected: 'detected',
       updatedAt: SEED_TIMESTAMP
+    },
+    // Chart of accounts: type and normalBalance are strict (no default), see data-mapping.md decision 5
+    {
+      sourceKey: 'abc-accounting',
+      label: 'ABC Accounting',
+      entity: 'accounts',
+      columns: {
+        code: 'Account Number',
+        name: 'Account Name',
+        type: 'Account Type',
+        subType: 'Sub Type',
+        normalBalance: 'Normal Balance',
+        active: 'Status',
+        parentCode: 'Parent Account'
+      },
+      values: {
+        type: {
+          map: { 'Asset': 'asset', 'Liability': 'liability', 'Equity': 'equity', 'Revenue': 'revenue', 'Expense': 'expense' },
+          default: null
+        },
+        normalBalance: { map: { 'Debit': 'debit', 'Credit': 'credit' }, default: null },
+        active: { map: { 'Active': true, 'Inactive': false }, default: true }
+      },
+      dateFormat: null,
+      dateFormatDetected: 'detected',
+      updatedAt: SEED_TIMESTAMP
+    },
+    {
+      sourceKey: 'xyz-financial-services',
+      label: 'XYZ Financial Services',
+      entity: 'accounts',
+      columns: {
+        code: 'acctCode',
+        name: 'acctName',
+        type: 'acctCategory',
+        subType: 'acctSubCategory',
+        normalBalance: 'balanceType',
+        active: 'activeFlag',
+        parentCode: 'parentAcctCode'
+      },
+      values: {
+        type: {
+          map: { 'ASSET': 'asset', 'LIABILITY': 'liability', 'EQUITY': 'equity', 'REVENUE': 'revenue', 'EXPENSE': 'expense' },
+          default: null
+        },
+        normalBalance: { map: { 'DR': 'debit', 'CR': 'credit' }, default: null },
+        active: { map: { '1': true, '0': false }, default: true }
+      },
+      dateFormat: null,
+      dateFormatDetected: 'detected',
+      updatedAt: SEED_TIMESTAMP
+    },
+    {
+      sourceKey: 'premier-bookkeeping',
+      label: 'Premier Bookkeeping',
+      entity: 'accounts',
+      columns: {
+        code: 'nominal_code',
+        name: 'account_title',
+        type: 'category',
+        subType: 'sub_category',
+        normalBalance: 'debit_credit',
+        active: 'is_active',
+        parentCode: 'parent_code'
+      },
+      values: {
+        type: {
+          // UK terms: Capital is equity, Income is revenue, and all three cost categories are expenses
+          map: {
+            'Assets': 'asset',
+            'Liabilities': 'liability',
+            'Capital': 'equity',
+            'Income': 'revenue',
+            'Direct Costs': 'expense',
+            'Overheads': 'expense',
+            'Finance Costs': 'expense'
+          },
+          default: null
+        },
+        normalBalance: { map: { 'D': 'debit', 'C': 'credit' }, default: null },
+        active: { map: { 'Yes': true, 'No': false }, default: true }
+      },
+      dateFormat: null,
+      dateFormatDetected: 'detected',
+      updatedAt: SEED_TIMESTAMP
     }
   ];
 }

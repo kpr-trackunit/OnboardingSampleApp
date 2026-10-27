@@ -412,6 +412,8 @@ function ImportResult({ source, summary, records, error }) {
   const columns = records.length > 0
     ? Object.keys(records[0]).filter(key => !['id', 'customerId'].includes(key) && !key.endsWith('Source'))
     : [];
+  // Accounts form a tree: list children under their parent and indent their name
+  const rows = summary.entity === 'accounts' ? orderByParent(records) : records.map(record => ({ record, depth: 0 }));
 
   return (
     <div className="import-result">
@@ -434,10 +436,15 @@ function ImportResult({ source, summary, records, error }) {
           <tr>{columns.map(column => <th key={column}>{column}</th>)}</tr>
         </thead>
         <tbody>
-          {records.map(record => (
-            <tr key={record.id}>
+          {rows.map(({ record, depth }) => (
+            <tr key={record.id} data-depth={depth}>
               {columns.map(column => (
-                <td key={column}>
+                <td
+                  key={column}
+                  className={column === 'name' && depth > 0 ? 'tree-child' : undefined}
+                  style={column === 'name' && depth > 0 ? { paddingLeft: `${12 + depth * 20}px` } : undefined}
+                >
+                  {column === 'name' && depth > 0 && <span className="muted">└ </span>}
                   {formatValue(record[column])}
                   {record[`${column}Source`] !== undefined && record[`${column}Source`] !== record[column] && (
                     <div className="muted">{record[`${column}Source`]}</div>
@@ -450,6 +457,24 @@ function ImportResult({ source, summary, records, error }) {
       </table>
     </div>
   );
+}
+
+// Orders accounts depth-first (each parent followed by its children) with their depth
+function orderByParent(records) {
+  const codes = new Set(records.map(r => r.code));
+  const children = {};
+  records.forEach(record => {
+    const parent = codes.has(record.parentCode) ? record.parentCode : '';
+    (children[parent] = children[parent] || []).push(record);
+  });
+
+  const ordered = [];
+  const visit = (parent, depth) => (children[parent] || []).forEach(record => {
+    ordered.push({ record, depth });
+    visit(record.code, depth + 1);
+  });
+  visit('', 0);
+  return ordered;
 }
 
 function IssueList({ title, className, issues }) {

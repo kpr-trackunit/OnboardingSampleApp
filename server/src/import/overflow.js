@@ -6,7 +6,7 @@
  * it works for any file (including uploads), not just the known XYZ case.
  */
 
-const { getTargetFields } = require('../models/targetFields');
+const { getTargetFields, getKeyField } = require('../models/targetFields');
 const { isDateLike, normalizeNumber } = require('./normalizers');
 
 // Whether a raw value is acceptable for the target field mapped to a column
@@ -38,9 +38,10 @@ function rejoinOverflow(header, fields, mapping) {
   });
 
   // Free-text columns are unmapped columns or ones mapped to a text field (not the ID)
+  const keyField = getKeyField(mapping.entity);
   const isFreeText = column => {
     const field = fieldByColumn[column];
-    return !field || (targetFields[field].type === 'text' && field !== 'sourceId');
+    return !field || (targetFields[field].type === 'text' && field !== 'sourceId' && field !== keyField);
   };
 
   const candidates = header

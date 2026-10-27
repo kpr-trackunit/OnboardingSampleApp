@@ -22,7 +22,8 @@ const store = {
   onboardingStates: [],
   mappings: [],
   clients: [],
-  importRuns: []
+  importRuns: [],
+  accounts: []
 };
 
 // Seed with example data
@@ -251,6 +252,28 @@ function saveClients(clients) {
   return clients;
 }
 
+function getAccounts(customerId) {
+  return store.accounts.filter(a => a.customerId === customerId);
+}
+
+// Looks up an imported account by its code (transactions reference accounts this way)
+function getAccountByCode(customerId, code) {
+  return store.accounts.find(a => a.customerId === customerId && a.code === String(code));
+}
+
+// Inserts or replaces each account by customerId + code, so re-importing never duplicates
+function saveAccounts(accounts) {
+  accounts.forEach(account => {
+    const index = store.accounts.findIndex(a => a.customerId === account.customerId && a.code === account.code);
+    if (index !== -1) {
+      store.accounts[index] = account;
+    } else {
+      store.accounts.push(account);
+    }
+  });
+  return accounts;
+}
+
 function addImportRun(run) {
   store.importRuns.push(run);
   return run;
@@ -282,5 +305,8 @@ module.exports = {
   getClients,
   saveClients,
   addImportRun,
-  getImportRuns
+  getImportRuns,
+  getAccounts,
+  getAccountByCode,
+  saveAccounts
 };
