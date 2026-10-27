@@ -1,4 +1,5 @@
-.plan-select {
+.plan-select,
+.region-select {
   padding: 4px 8px;
   border: 1px solid #d1d5db;
   border-radius: 6px;

@@ -75,4 +75,34 @@ test.describe('Tenant Setup', () => {
     await expect(tenantStep.locator('.step-status')).toHaveClass(/completed/);
     await expect(card.locator('.progress-bar')).toHaveText('25%');
   });
+
+  test('should keep a changed region after reloading the tab', async ({ page, request }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Tenant Setup' }).click();
+
+    const row = page.locator('.tenant-table tbody tr').first();
+    const regionSelect = row.locator('.region-select');
+    await expect(regionSelect).toBeVisible();
+    const customerId = await row.getAttribute('data-customer-id');
+    const originalRegion = await regionSelect.inputValue();
+    // Prefilled from the customer's region
+    expect(originalRegion).not.toBe('');
+    const newRegion = originalRegion === 'EU' ? 'APAC' : 'EU';
+
+    try {
+      const saved = page.waitForResponse(res =>
+        res.url().endsWith(`/api/tenants/${customerId}`) && res.request().method() === 'PATCH');
+      await regionSelect.selectOption(newRegion);
+      expect((await saved).ok()).toBeTruthy();
+
+      await page.reload();
+      await page.getByRole('button', { name: 'Tenant Setup' }).click();
+      await expect(
+        page.locator(`.tenant-table tbody tr[data-customer-id="${customerId}"] .region-select`)
+      ).toHaveValue(newRegion);
+    } finally {
+      // Put the shared tenant back for other tests
+      await request.patch(`/api/tenants/${customerId}`, { data: { region: originalRegion } });
+    }
+  });
 });
