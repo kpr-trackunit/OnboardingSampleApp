@@ -23,7 +23,9 @@ const store = {
   mappings: [],
   clients: [],
   importRuns: [],
-  accounts: []
+  accounts: [],
+  contacts: [],
+  transactions: []
 };
 
 // Seed with example data
@@ -274,6 +276,40 @@ function saveAccounts(accounts) {
   return accounts;
 }
 
+function getContacts(customerId) {
+  return store.contacts.filter(c => c.customerId === customerId);
+}
+
+// Inserts or replaces each contact by customerId + sourceId, so re-importing never duplicates
+function saveContacts(contacts) {
+  contacts.forEach(contact => {
+    const index = store.contacts.findIndex(c => c.customerId === contact.customerId && c.sourceId === contact.sourceId);
+    if (index !== -1) {
+      store.contacts[index] = contact;
+    } else {
+      store.contacts.push(contact);
+    }
+  });
+  return contacts;
+}
+
+function getTransactions(customerId) {
+  return store.transactions.filter(t => t.customerId === customerId);
+}
+
+// Inserts or replaces each transaction by customerId + sourceId, so re-importing never duplicates
+function saveTransactions(transactions) {
+  transactions.forEach(transaction => {
+    const index = store.transactions.findIndex(t => t.customerId === transaction.customerId && t.sourceId === transaction.sourceId);
+    if (index !== -1) {
+      store.transactions[index] = transaction;
+    } else {
+      store.transactions.push(transaction);
+    }
+  });
+  return transactions;
+}
+
 function addImportRun(run) {
   store.importRuns.push(run);
   return run;
@@ -308,5 +344,9 @@ module.exports = {
   getImportRuns,
   getAccounts,
   getAccountByCode,
-  saveAccounts
+  saveAccounts,
+  getContacts,
+  saveContacts,
+  getTransactions,
+  saveTransactions
 };

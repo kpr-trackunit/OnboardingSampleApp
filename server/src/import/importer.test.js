@@ -24,8 +24,13 @@ describe('Importer', () => {
     it('should mark files that have a mapping as importable', () => {
       const abc = listImportSources().find(s => s.sourceKey === 'abc-accounting');
 
-      assert.strictEqual(abc.files.find(f => f.entity === 'clients').importable, true);
-      assert.strictEqual(abc.files.find(f => f.entity === 'transactions').importable, false);
+      // All four entities have a seeded mapping
+      assert.deepStrictEqual(abc.files.map(f => [f.entity, f.importable]), [
+        ['clients', true],
+        ['contacts', true],
+        ['accounts', true],
+        ['transactions', true]
+      ]);
     });
   });
 

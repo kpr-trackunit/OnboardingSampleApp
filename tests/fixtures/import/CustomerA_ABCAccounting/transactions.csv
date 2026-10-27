@@ -1,0 +1,8 @@
+Transaction ID,Date,Client ID,Account Number,Description,Transaction Type,Amount,Reference Number,Payment Method,Status,Category
+TXN001,01/15/2024,C001,1000,Client payment received,Credit,15000.00,INV-2024-001,Wire Transfer,Cleared,Revenue
+TXN002,01/16/2024,C003,6000,Client was rejected,Debit,850.00,PO-2024-001,Check,Cleared,Operating
+TXN003,01/18/2024,C002,1100,Account was rejected,Debit,2500.00,INV-2024-002,ACH,Pending,Revenue
+TXN004,01/20/2024,C001,6300,Unmapped direction,Transfer,320.00,EXP-2024-001,Credit Card,Cleared,Utilities
+TXN005,01/22/2024,C002,01000,Leading zero is a different account,Credit,75.00,INV-2024-003,Cash,Voided,Revenue
+TXN006,01/25/2024,C999,9999,Unknown client and account,Debit,10.00,EXP-2024-002,Cash,Cleared,Operating
+TXN007,01/28/2024,C002,6500,Office supplies,Debit,125.50,EXP-2024-003,Journal Entry,Pending,Operating
