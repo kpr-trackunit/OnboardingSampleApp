@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
+  { id: 'customers', label: 'Customers' },
   { id: 'customer-info', label: 'Customer Info' },
   { id: 'data-mapping', label: 'Data Mapping' },
   { id: 'tenant-setup', label: 'Tenant Setup' },
@@ -13,8 +14,16 @@ function App() {
   const [onboardingData, setOnboardingData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [customers, setCustomers] = useState([]);
+
+  const loadCustomers = () =>
+    fetch('/api/customers')
+      .then(res => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then(setCustomers)
+      .catch(err => console.error('Failed to fetch customers:', err));
 
   useEffect(() => {
+    loadCustomers();
     fetch('/api/onboarding')
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -58,14 +67,15 @@ function App() {
         {activeTab === 'dashboard' && (
           <DashboardTab data={onboardingData} loading={loading} error={error} />
         )}
+        {activeTab === 'customers' && <CustomerListTab customers={customers} onSaved={loadCustomers} />}
         {activeTab === 'customer-info' && (
           <PlaceholderTab title="Customer Info" description="Collect and validate customer information" />
         )}
         {activeTab === 'data-mapping' && (
-          <PlaceholderTab title="Data Mapping" description="Map customer data to platform configuration" />
+          <DataMappingTab customers={customers} onSaved={loadCustomers} />
         )}
         {activeTab === 'tenant-setup' && (
-          <PlaceholderTab title="Tenant Setup" description="Provision and configure customer tenant" />
+          <TenantSetupTab customers={customers} onSaved={loadCustomers} />
         )}
         {activeTab === 'import' && (
           <PlaceholderTab title="Import" description="Import customer data into the platform" />
@@ -114,6 +124,322 @@ function DashboardTab({ data, loading, error }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+async function saveCustomer(id, updates) {
+  const res = await fetch(`/api/customers/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updates)
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+}
+
+function AddCustomerForm({ onAdded }) {
+  const [name, setName] = useState('');
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name })
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      setName('');
+      await onAdded();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} style={{ marginBottom: '24px' }}>
+      <input
+        type="text"
+        aria-label="Customer name"
+        placeholder="New customer name"
+        value={name}
+        onChange={e => setName(e.target.value)}
+        required
+        style={{ padding: '8px 12px', marginRight: '8px', minWidth: '260px' }}
+      />
+      <button type="submit" disabled={saving || !name.trim()} style={{ padding: '8px 16px' }}>
+        {saving ? 'Saving...' : 'Add Customer'}
+      </button>
+      {error && <p style={{ color: '#dc2626', marginTop: '12px' }}>⚠️ {error}</p>}
+    </form>
+  );
+}
+
+function CustomerListTab({ customers, onSaved }) {
+  return (
+    <div>
+      <h2>Customers</h2>
+      <p style={{ color: '#6b7280', marginBottom: '20px' }}>{customers.length} customer(s)</p>
+      <AddCustomerForm onAdded={onSaved} />
+      {customers.length === 0 && <div className="placeholder"><p>No customers yet</p></div>}
+      {customers.map(c => (
+        <CustomerCard key={c.id} customer={c} onSaved={onSaved} />
+      ))}
+    </div>
+  );
+}
+
+function CustomerCard({ customer, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(customer.name);
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await saveCustomer(customer.id, { name });
+      await onSaved();
+      setEditing(false);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!editing) {
+    return (
+      <div className="customer-card">
+        <h3>{customer.name}</h3>
+        <button
+          onClick={() => { setName(customer.name); setError(null); setEditing(true); }}
+          style={{ marginTop: '8px', padding: '4px 12px' }}
+        >
+          Edit name
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="customer-card">
+      <input
+        type="text"
+        aria-label="Customer name"
+        value={name}
+        onChange={e => setName(e.target.value)}
+        style={{ padding: '8px 12px', minWidth: '260px', marginRight: '8px' }}
+      />
+      <button onClick={save} disabled={saving || !name.trim()} style={{ padding: '6px 16px', marginRight: '8px' }}>
+        {saving ? 'Saving...' : 'Save'}
+      </button>
+      <button onClick={() => setEditing(false)} disabled={saving} style={{ padding: '6px 16px' }}>Cancel</button>
+      {error && <p style={{ color: '#dc2626', marginTop: '12px' }}>⚠️ {error}</p>}
+    </div>
+  );
+}
+
+function DataMappingTab({ customers, onSaved }) {
+  const [selectedId, setSelectedId] = useState('');
+  const customer = customers.find(c => c.id === selectedId);
+
+  return (
+    <div>
+      <h2>Data Mapping</h2>
+      <p style={{ color: '#6b7280', marginBottom: '20px' }}>Per-customer config used to map data to the platform.</p>
+      <select
+        aria-label="Select customer"
+        value={selectedId}
+        onChange={e => setSelectedId(e.target.value)}
+        style={{ padding: '8px 12px', marginBottom: '20px', minWidth: '260px' }}
+      >
+        <option value="">Select a customer...</option>
+        {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </select>
+      {customer && <ConfigEditor key={customer.id} customer={customer} onSaved={onSaved} />}
+    </div>
+  );
+}
+
+function ConfigEditor({ customer, onSaved }) {
+  const [rows, setRows] = useState(
+    Object.entries(customer.config || {}).map(([key, value]) => ({ key, value }))
+  );
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const updateRow = (i, field, value) => {
+    setSaved(false);
+    setRows(rows.map((r, idx) => (idx === i ? { ...r, [field]: value } : r)));
+  };
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const config = Object.fromEntries(rows.filter(r => r.key.trim()).map(r => [r.key, r.value]));
+      await saveCustomer(customer.id, { config });
+      await onSaved();
+      setSaved(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="customer-card">
+      <h3 style={{ marginBottom: '12px' }}>{customer.name} config</h3>
+      {rows.length === 0 && <p style={{ color: '#9ca3af', fontSize: '0.9rem', marginBottom: '8px' }}>No config yet</p>}
+      {rows.map((row, i) => (
+        <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '6px' }}>
+          <input
+            type="text"
+            aria-label="Config key"
+            placeholder="key"
+            value={row.key}
+            onChange={e => updateRow(i, 'key', e.target.value)}
+            style={{ padding: '6px 8px' }}
+          />
+          <input
+            type="text"
+            aria-label="Config value"
+            placeholder="value"
+            value={row.value}
+            onChange={e => updateRow(i, 'value', e.target.value)}
+            style={{ padding: '6px 8px', flex: 1 }}
+          />
+          <button
+            onClick={() => { setSaved(false); setRows(rows.filter((_, idx) => idx !== i)); }}
+            aria-label="Remove config row"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+      <button onClick={() => { setSaved(false); setRows([...rows, { key: '', value: '' }]); }} style={{ padding: '4px 12px' }}>
+        + Add config
+      </button>
+      <div style={{ marginTop: '12px' }}>
+        <button onClick={save} disabled={saving} style={{ padding: '6px 16px' }}>
+          {saving ? 'Saving...' : 'Save config'}
+        </button>
+        {saved && <span style={{ marginLeft: '12px', color: '#10b981' }}>Saved</span>}
+      </div>
+      {error && <p style={{ color: '#dc2626', marginTop: '12px' }}>⚠️ {error}</p>}
+    </div>
+  );
+}
+
+const ISSUE_STATUSES = ['open', 'in-progress', 'resolved'];
+
+function TenantSetupTab({ customers, onSaved }) {
+  const openCount = customers.reduce(
+    (n, c) => n + (c.issues || []).filter(i => i.status !== 'resolved').length,
+    0
+  );
+
+  return (
+    <div>
+      <h2>Tenant Setup</h2>
+      <p style={{ color: '#6b7280', marginBottom: '20px' }}>
+        {openCount} unresolved issue(s) across {customers.length} customer(s)
+      </p>
+      {customers.map(c => (
+        <CustomerIssues key={c.id} customer={c} onSaved={onSaved} />
+      ))}
+    </div>
+  );
+}
+
+function CustomerIssues({ customer, onSaved }) {
+  const issues = customer.issues || [];
+  const [title, setTitle] = useState('');
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const saveIssues = async (next) => {
+    setSaving(true);
+    setError(null);
+    try {
+      await saveCustomer(customer.id, { issues: next });
+      await onSaved();
+      return true;
+    } catch (err) {
+      setError(err.message);
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const addIssue = async (e) => {
+    e.preventDefault();
+    if (await saveIssues([...issues, { title, status: 'open' }])) setTitle('');
+  };
+
+  return (
+    <div className="customer-card">
+      <h3>{customer.name}</h3>
+      {issues.length === 0 && (
+        <p style={{ color: '#9ca3af', fontSize: '0.9rem', margin: '8px 0' }}>No issues</p>
+      )}
+      <ul className="checklist">
+        {issues.map((issue, i) => (
+          <li key={i}>
+            <span>{issue.title}</span>
+            <span style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+              <select
+                aria-label={`Status of ${issue.title}`}
+                value={issue.status}
+                disabled={saving}
+                onChange={e =>
+                  saveIssues(issues.map((x, idx) => (idx === i ? { ...x, status: e.target.value } : x)))
+                }
+              >
+                {ISSUE_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <button
+                aria-label={`Remove ${issue.title}`}
+                disabled={saving}
+                onClick={() => saveIssues(issues.filter((_, idx) => idx !== i))}
+              >
+                ✕
+              </button>
+            </span>
+          </li>
+        ))}
+      </ul>
+      <form onSubmit={addIssue} style={{ marginTop: '8px' }}>
+        <input
+          type="text"
+          aria-label={`New issue for ${customer.name}`}
+          placeholder="New tenant setup issue"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          style={{ padding: '6px 8px', marginRight: '8px', minWidth: '260px' }}
+        />
+        <button type="submit" disabled={saving || !title.trim()} style={{ padding: '6px 16px' }}>
+          Add issue
+        </button>
+      </form>
+      {error && <p style={{ color: '#dc2626', marginTop: '12px' }}>⚠️ {error}</p>}
     </div>
   );
 }
