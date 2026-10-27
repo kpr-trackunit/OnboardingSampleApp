@@ -58,3 +58,21 @@ test.describe('Onboarding Dashboard', () => {
     await expect(page.locator('.placeholder h2')).toContainText('Customer Info');
   });
 });
+
+test.describe('Dashboard current step', () => {
+  test('should show a "Next:" badge for a customer with no completed steps', async ({ page, request }) => {
+    const res = await request.get('/api/onboarding');
+    expect(res.ok()).toBeTruthy();
+    const queue = await res.json();
+    const fresh = queue.find(row => row.steps.every(step => step.status !== 'completed'));
+    expect(fresh, 'a customer with no completed steps').toBeTruthy();
+    const firstStep = [...fresh.steps].sort((a, b) => a.order - b.order)[0];
+
+    await page.goto('/');
+
+    const card = page.locator('.customer-card').filter({
+      has: page.locator('h3', { hasText: fresh.customerName })
+    }).first();
+    await expect(card.locator('.current-step-badge')).toHaveText(`Next: ${firstStep.name}`);
+  });
+});

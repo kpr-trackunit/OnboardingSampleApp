@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { saveCustomer } from './api';
 import CustomerDetails from './components/CustomerDetails';
 import TenantSetupTab from './components/TenantSetupTab';
+import CurrentStepBadge from './components/CurrentStepBadge';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -122,6 +123,7 @@ function DashboardTab({ data, loading, error }) {
       {data.map(item => (
         <div key={item.customerId} className="customer-card">
           <h3>{item.customerName}</h3>
+          <CurrentStepBadge step={item.currentStep} />
           <div className="customer-meta">
             <span>📍 {item.customerRegion}</span>
             <span>🏭 {item.customerIndustry}</span>
