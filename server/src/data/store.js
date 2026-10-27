@@ -13,7 +13,8 @@ const store = {
   tenants: [],
   onboardingStates: [],
   mappings: [],
-  clients: []
+  clients: [],
+  importRuns: []
 };
 
 // Seed with example data
@@ -173,9 +174,26 @@ function getClients(customerId) {
   return store.clients.filter(c => c.customerId === customerId);
 }
 
-function addClients(clients) {
-  store.clients.push(...clients);
+// Inserts or replaces each client by customerId + sourceId, so re-importing never duplicates
+function saveClients(clients) {
+  clients.forEach(client => {
+    const index = store.clients.findIndex(c => c.customerId === client.customerId && c.sourceId === client.sourceId);
+    if (index !== -1) {
+      store.clients[index] = client;
+    } else {
+      store.clients.push(client);
+    }
+  });
   return clients;
+}
+
+function addImportRun(run) {
+  store.importRuns.push(run);
+  return run;
+}
+
+function getImportRuns(customerId) {
+  return store.importRuns.filter(r => r.customerId === customerId);
 }
 
 module.exports = {
@@ -197,5 +215,7 @@ module.exports = {
   getMapping,
   saveMapping,
   getClients,
-  addClients
+  saveClients,
+  addImportRun,
+  getImportRuns
 };
