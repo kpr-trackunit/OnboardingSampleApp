@@ -82,6 +82,14 @@ function getTenants() {
   return [...store.tenants];
 }
 
+// All tenants joined with their customer's name (Tenant Setup table)
+function getTenantList() {
+  return store.tenants.map(tenant => {
+    const customer = getCustomerById(tenant.customerId);
+    return { ...tenant, customerName: customer?.name || 'Unknown' };
+  });
+}
+
 function getTenantByCustomerId(customerId) {
   return store.tenants.find(t => t.customerId === customerId);
 }
@@ -119,6 +127,7 @@ module.exports = {
   addCustomer,
   updateCustomer,
   getTenants,
+  getTenantList,
   getTenantByCustomerId,
   addTenant,
   getOnboardingState,

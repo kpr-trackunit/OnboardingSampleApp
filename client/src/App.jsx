@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { saveCustomer } from './api';
 import CustomerDetails from './components/CustomerDetails';
+import TenantSetupTab from './components/TenantSetupTab';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -77,7 +78,7 @@ function App() {
           <PlaceholderTab title="Data Mapping" description="Map customer data to platform configuration" />
         )}
         {activeTab === 'tenant-setup' && (
-          <PlaceholderTab title="Tenant Setup" description="Provision and configure customer tenant" />
+          <TenantSetupTab />
         )}
         {activeTab === 'import' && <ImportTab />}
       </main>
@@ -211,9 +212,11 @@ function CustomerCard({ customer, onSaved }) {
   };
 
   if (!editing) {
+    const unresolved = (customer.issues || []).filter(i => i.status !== 'resolved').length;
     return (
       <div className="customer-card">
         <h3>{customer.name}</h3>
+        <p style={{ color: '#6b7280', fontSize: '0.9rem' }}>{unresolved} unresolved issue(s)</p>
         <button
           onClick={() => { setName(customer.name); setError(null); setEditing(true); }}
           style={{ marginTop: '8px', marginRight: '8px', padding: '4px 12px' }}

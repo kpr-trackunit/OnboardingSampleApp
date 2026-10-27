@@ -16,5 +16,8 @@ createdAt: 2025-01-17T10:00:00Z
 
 ## Issues
 
-- [open] Single-letter status codes (A/I/P) need value mapping
-- [open] Transaction types DR/CR not recognised by importer
+- [open] clients.csv: all 12 rows have unquoted "Last, First" mainContact (11 fields, expected 10), columns shift
+- [open] Client status codes A / I / P need value mapping
+- [open] Entry types DR / CR need mapping to Debit / Credit
+- [in-progress] contacts.csv isActive has a third value "P" besides Y / N
+- [resolved] All contacts and transactions reference known clients and accounts
