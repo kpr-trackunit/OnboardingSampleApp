@@ -1,0 +1,46 @@
+.tenant-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tenant-table th,
+.tenant-table td {
+  text-align: left;
+  padding: 12px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.tenant-table th {
+  color: #6b7280;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-bottom-color: #e5e7eb;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.status-badge.pending {
+  background: #e5e7eb;
+  color: #4b5563;
+}
+
+.status-badge.provisioning {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.status-badge.active {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.status-badge.failed {
+  background: #fee2e2;
+  color: #b91c1c;
+}

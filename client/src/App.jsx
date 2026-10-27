@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import TenantSetupTab from './components/TenantSetupTab';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -75,7 +76,10 @@ function App() {
           <DataMappingTab customers={customers} onSaved={loadCustomers} />
         )}
         {activeTab === 'tenant-setup' && (
-          <TenantSetupTab customers={customers} onSaved={loadCustomers} />
+          <>
+            <TenantSetupTab />
+            <CustomerIssuesTab customers={customers} onSaved={loadCustomers} />
+          </>
         )}
         {activeTab === 'import' && <ImportTab />}
       </main>
@@ -349,7 +353,7 @@ function ConfigEditor({ customer, onSaved }) {
 
 const ISSUE_STATUSES = ['open', 'in-progress', 'resolved'];
 
-function TenantSetupTab({ customers, onSaved }) {
+function CustomerIssuesTab({ customers, onSaved }) {
   const openCount = customers.reduce(
     (n, c) => n + (c.issues || []).filter(i => i.status !== 'resolved').length,
     0
@@ -357,7 +361,7 @@ function TenantSetupTab({ customers, onSaved }) {
 
   return (
     <div>
-      <h2>Tenant Setup</h2>
+      <h2>Customer Issues</h2>
       <p style={{ color: '#6b7280', marginBottom: '20px' }}>
         {openCount} unresolved issue(s) across {customers.length} customer(s)
       </p>
