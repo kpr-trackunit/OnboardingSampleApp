@@ -11,6 +11,9 @@ const { createClient } = require('../models');
 const { DEFAULT_DATA_DIR, listSources, getSource } = require('./sources');
 const { parseCsv } = require('./csv');
 const { transformRow } = require('./transform');
+const { rejoinOverflow } = require('./overflow');
+const { detectDateFormat } = require('./normalizers');
+const { getTargetFields } = require('../models/targetFields');
 
 // How each entity is created and stored
 const ENTITIES = {
@@ -55,35 +58,58 @@ function resolve(sourceKey, entity, dataDir) {
 }
 
 /**
+ * Uses the date format detected in the file unless CS has confirmed one on the mapping.
+ * An ambiguous file keeps the mapping's format.
+ */
+function withDetectedDateFormat(mapping, rows) {
+  if (mapping.dateFormatDetected === 'confirmed') return mapping;
+
+  const dateColumns = Object.entries(getTargetFields(mapping.entity))
+    .filter(([field, spec]) => spec.type === 'date' && mapping.columns[field])
+    .map(([field]) => mapping.columns[field]);
+  const detection = detectDateFormat(rows.flatMap(row => dateColumns.map(column => row[column] ?? '')));
+
+  if (detection.status === 'detected') {
+    return { ...mapping, dateFormat: detection.format, dateFormatDetected: 'detected' };
+  }
+  return mapping;
+}
+
+/**
  * Imports one entity file for a source
  * @param {string} sourceKey
  * @param {string} entity
  * @param {{ dataDir?: string }} [options]
- * @returns {{ entity: string, imported: number, rejected: number }}
+ * @returns {{ entity: string, imported: number, rejected: number, dateFormat: string|null }}
  */
 function importEntity(sourceKey, entity, { dataDir = DEFAULT_DATA_DIR } = {}) {
   const { source, file } = resolve(sourceKey, entity, dataDir);
-  const mapping = store.getMapping(source.customerId, entity);
-  if (!mapping) throw new ImportError(`No ${entity} mapping for '${source.label}'`, 400);
+  const storedMapping = store.getMapping(source.customerId, entity);
+  if (!storedMapping) throw new ImportError(`No ${entity} mapping for '${source.label}'`, 400);
 
   const text = fs.readFileSync(path.join(dataDir, source.folder, file.filename), 'utf8');
   const { header, rows } = parseCsv(text);
 
-  const records = [];
+  // Rejoin unquoted commas in free text, then key each row by column name
   let rejected = 0;
-
+  const keyedRows = [];
   rows.forEach(({ fields }) => {
-    if (fields.length !== header.length) {
+    const recovered = rejoinOverflow(header, fields, storedMapping).fields;
+    if (recovered.length !== header.length) {
       rejected++;
       return;
     }
-    const row = Object.fromEntries(header.map((column, i) => [column, fields[i]]));
+    keyedRows.push(Object.fromEntries(header.map((column, i) => [column, recovered[i]])));
+  });
+
+  const mapping = withDetectedDateFormat(storedMapping, keyedRows);
+  const records = keyedRows.map(row => {
     const { record } = transformRow(row, mapping);
-    records.push(ENTITIES[entity].create({ ...record, customerId: source.customerId }));
+    return ENTITIES[entity].create({ ...record, customerId: source.customerId });
   });
 
   ENTITIES[entity].save(records);
-  return { entity, imported: records.length, rejected };
+  return { entity, imported: records.length, rejected, dateFormat: mapping.dateFormat };
 }
 
 /**
