@@ -83,11 +83,14 @@ test.describe('Tenant Setup', () => {
 
     // Dashboard step 3 mirrors failed
     await page.getByRole('button', { name: 'Dashboard' }).click();
+    // Exactly this customer; a failed step also adds a "Needs attention" badge to the heading
+    const escapedName = customerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const card = page.locator('.customer-card', {
-      has: page.getByRole('heading', { name: customerName, exact: true })
+      has: page.getByRole('heading', { name: new RegExp(`^${escapedName}\\s*(Needs attention)?$`) })
     });
     const tenantStep = card.locator('.checklist li', { hasText: 'Tenant Setup' });
     await expect(tenantStep.locator('.step-status')).toHaveClass(/failed/);
+    await expect(card.locator('.attention-badge')).toHaveText('Needs attention');
     await expect(tenantStep).toContainText('failed');
 
     // Retry goes back to provisioning and clears the reason
@@ -152,5 +155,22 @@ test.describe('Tenant Setup', () => {
       // Put the shared tenant back for other tests
       await request.patch(`/api/tenants/${customerId}`, { data: { region: originalRegion } });
     }
+  });
+
+  test('a customer added on the Customers tab appears in Tenant Setup as pending / starter', async ({ page }) => {
+    const name = `Auto Tenant ${Date.now()}`;
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Customers', exact: true }).click();
+    await page.getByPlaceholder('New customer name').fill(name);
+    const created = page.waitForResponse(res =>
+      res.url().endsWith('/api/customers') && res.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Add Customer' }).click();
+    expect((await created).status()).toBe(201);
+
+    await page.getByRole('button', { name: 'Tenant Setup' }).click();
+    const row = page.locator('.tenant-table tbody tr', { hasText: name });
+    await expect(row).toHaveCount(1);
+    await expect(row.locator('.status-badge')).toHaveText('pending');
+    await expect(row.locator('.plan-select')).toHaveValue('starter');
   });
 });

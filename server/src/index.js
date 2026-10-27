@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const store = require('./data/store');
 const { createCustomer } = require('./models');
-const { buildQueue, summarise } = require('./models/queue');
+const { buildQueue, summarise, sortQueue } = require('./models/queue');
 const { ImportError, listImportSources, importEntity, getImported } = require('./import/importer');
 const { requireActiveTenant } = require('./routes/importGuard');
 
@@ -91,7 +91,7 @@ app.get('/api/customers/:id/onboarding', (req, res) => {
 
 // Onboarding queue (dashboard view): one row per customer
 app.get('/api/onboarding', (req, res) => {
-  res.json(buildQueue(store.getCustomers(), store.getAllOnboardingStates()));
+  res.json(sortQueue(buildQueue(store.getCustomers(), store.getAllOnboardingStates())));
 });
 
 // Onboarding queue summary (dashboard strip): how many customers are in each state
@@ -101,6 +101,7 @@ app.get('/api/onboarding/summary', (req, res) => {
 
 // Tenant Setup routes (list, and later status/plan/region updates)
 app.use('/api/tenants', require('./routes/tenants'));
+app.use('/api/mappings', require('./routes/mappings'));
 
 // Get tenant by customer ID
 app.get('/api/tenants/:customerId', (req, res) => {

@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { saveCustomer } from './api';
 import CustomerDetails from './components/CustomerDetails';
 import TenantSetupTab from './components/TenantSetupTab';
+import DataMappingTab from './components/DataMappingTab';
 import SummaryStrip from './components/SummaryStrip';
 import CurrentStepBadge from './components/CurrentStepBadge';
+import AttentionBadge, { attentionCardClass } from './components/AttentionBadge';
 import StepFilter, { ALL, matchesStepFilter } from './components/StepFilter';
 
 const TABS = [
@@ -54,9 +56,7 @@ function App() {
         {activeTab === 'customer-info' && (
           <PlaceholderTab title="Customer Info" description="Collect and validate customer information" />
         )}
-        {activeTab === 'data-mapping' && (
-          <PlaceholderTab title="Data Mapping" description="Map customer data to platform configuration" />
-        )}
+        {activeTab === 'data-mapping' && <DataMappingTab />}
         {activeTab === 'tenant-setup' && (
           <TenantSetupTab />
         )}
@@ -126,8 +126,8 @@ function DashboardTab() {
 
       <StepFilter rows={data} value={stepFilter} onChange={setStepFilter} />
       {data.filter(item => matchesStepFilter(item, stepFilter)).map(item => (
-        <div key={item.customerId} className="customer-card">
-          <h3>{item.customerName}</h3>
+        <div key={item.customerId} className={attentionCardClass(item.needsAttention)}>
+          <h3>{item.customerName}<AttentionBadge needsAttention={item.needsAttention} /></h3>
           <CurrentStepBadge step={item.currentStep} />
           <div className="customer-meta">
             <span>📍 {item.customerRegion}</span>
