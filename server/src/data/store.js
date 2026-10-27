@@ -21,7 +21,8 @@ const store = {
   tenants: [],
   onboardingStates: [],
   mappings: [],
-  clients: []
+  clients: [],
+  importRuns: []
 };
 
 // Seed with example data
@@ -58,7 +59,8 @@ function seedData() {
     customerFiles.save(exampleCustomer);
     store.customers.push(exampleCustomer);
   }
-  store.tenants.push(exampleTenant);
+  // Added after the customers load so its region is backfilled from the customer
+  addTenant(exampleTenant);
   store.onboardingStates.push(exampleOnboardingState);
 
   // Column/value mappings for the sample customers in sample-data/
@@ -123,9 +125,17 @@ function getTenantByCustomerId(customerId) {
   return store.tenants.find(t => t.customerId === customerId);
 }
 
+// Import is gated on this (tenant slice 7). A customer without a tenant record is not active.
+function isTenantActive(customerId) {
+  return getTenantByCustomerId(customerId)?.status === 'active';
+}
+
+// Adds a tenant. A tenant without a region gets its customer's region (data residency prefill)
 function addTenant(tenant) {
-  store.tenants.push(tenant);
-  return tenant;
+  const customer = getCustomerById(tenant.customerId);
+  const added = { ...tenant, region: tenant.region || customer?.region || '' };
+  store.tenants.push(added);
+  return added;
 }
 
 const TENANT_SETUP_STEP_ID = 'step_3';
@@ -133,9 +143,14 @@ const TENANT_SETUP_STEP_ID = 'step_3';
 /**
  * Moves a customer's tenant to a new status, enforcing the transition table,
  * and mirrors it onto onboarding step 3 (recalculating progressPercent).
- * @returns {{ tenant: object } | { error: string, code: 'not_found' | 'invalid_transition' }}
+ * Moving to 'failed' requires a non-empty reason, stored as failureReason;
+ * every other move (e.g. Retry: failed -> provisioning) clears it.
+ * @param {string} customerId
+ * @param {string} status
+ * @param {string} [reason] - Required when status is 'failed'
+ * @returns {{ tenant: object } | { error: string, code: 'not_found' | 'invalid_transition' | 'reason_required' }}
  */
-function updateTenantStatus(customerId, status) {
+function updateTenantStatus(customerId, status, reason) {
   const index = store.tenants.findIndex(t => t.customerId === customerId);
   if (index === -1) {
     return { error: 'Tenant not found', code: 'not_found' };
@@ -149,7 +164,17 @@ function updateTenantStatus(customerId, status) {
     };
   }
 
-  const tenant = { ...current, status };
+  const failureReason = typeof reason === 'string' ? reason.trim() : '';
+  if (status === 'failed' && !failureReason) {
+    return { error: 'A reason is required to mark a tenant failed', code: 'reason_required' };
+  }
+
+  const tenant = {
+    ...current,
+    status,
+    failureReason: status === 'failed' ? failureReason : null
+  };
+  // Slice 8 (status history): append { at, from: current.status, to: status, reason? } to tenant.statusHistory here
   store.tenants[index] = tenant;
 
   const state = getOnboardingState(customerId);
@@ -218,9 +243,26 @@ function getClients(customerId) {
   return store.clients.filter(c => c.customerId === customerId);
 }
 
-function addClients(clients) {
-  store.clients.push(...clients);
+// Inserts or replaces each client by customerId + sourceId, so re-importing never duplicates
+function saveClients(clients) {
+  clients.forEach(client => {
+    const index = store.clients.findIndex(c => c.customerId === client.customerId && c.sourceId === client.sourceId);
+    if (index !== -1) {
+      store.clients[index] = client;
+    } else {
+      store.clients.push(client);
+    }
+  });
   return clients;
+}
+
+function addImportRun(run) {
+  store.importRuns.push(run);
+  return run;
+}
+
+function getImportRuns(customerId) {
+  return store.importRuns.filter(r => r.customerId === customerId);
 }
 
 module.exports = {
@@ -231,6 +273,7 @@ module.exports = {
   getTenants,
   getTenantList,
   getTenantByCustomerId,
+  isTenantActive,
   addTenant,
   updateTenantStatus,
   updateTenant,
@@ -243,5 +286,7 @@ module.exports = {
   getMapping,
   saveMapping,
   getClients,
-  addClients
+  saveClients,
+  addImportRun,
+  getImportRuns
 };

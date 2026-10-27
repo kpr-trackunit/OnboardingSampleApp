@@ -6,6 +6,8 @@
  * type: 'text' (trimmed string) | 'number' | 'date' (stored as ISO YYYY-MM-DD) | 'picklist'
  * required: the row is rejected when the value is missing
  * values: the region-neutral standard values a picklist field can take
+ * strict: picklist with no default; an unmapped value rejects the row instead of
+ *   using the default (transaction direction, account type and normalBalance)
  */
 
 const TARGET_FIELDS = {
