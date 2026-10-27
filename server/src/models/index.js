@@ -20,11 +20,16 @@
  * @property {string} customerId - Associated customer ID
  * @property {string} status - 'pending' | 'provisioning' | 'active' | 'failed'
  * @property {string} plan - 'starter' | 'professional' | 'enterprise'
+ * @property {string} region - Data residency; defaults to the customer's region when the tenant is created
  * @property {string} createdAt - ISO timestamp
  */
 
 // Allowed values for Tenant.plan
 const TENANT_PLANS = ['starter', 'professional', 'enterprise'];
+
+// Regions a tenant can be hosted in (data residency). Proposed list from
+// tickets/tenant-setup.md open question 1, pending confirmation.
+const TENANT_REGIONS = ['North America', 'EU', 'UK', 'APAC'];
 
 /**
  * @typedef {Object} OnboardingStep
@@ -105,6 +110,7 @@ function createTenant(data) {
     customerId: data.customerId || '',
     status: data.status || 'pending',
     plan: data.plan || 'starter',
+    region: data.region || '',
     createdAt: data.createdAt || new Date().toISOString()
   };
 }
@@ -209,6 +215,7 @@ function createMapping(data) {
 
 module.exports = {
   TENANT_PLANS,
+  TENANT_REGIONS,
   createCustomer,
   createTenant,
   createDefaultOnboardingSteps,
