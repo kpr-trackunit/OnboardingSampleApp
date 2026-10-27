@@ -31,6 +31,23 @@ test.describe('Onboarding Dashboard', () => {
     await expect(acme.locator('h3')).toContainText('Acme 2 Corporation');
   });
 
+  test('should show every customer in the onboarding queue', async ({ page, request }) => {
+    const res = await request.get('/api/customers');
+    expect(res.ok()).toBeTruthy();
+    const customers = await res.json();
+    expect(customers.length).toBeGreaterThan(0);
+
+    await page.goto('/');
+
+    // One card per customer, including those with no onboarding state yet
+    await expect(page.locator('.customer-card')).toHaveCount(customers.length);
+    for (const customer of customers) {
+      await expect(
+        page.locator('.customer-card h3').filter({ hasText: customer.name }).first()
+      ).toBeVisible();
+    }
+  });
+
   test('should switch between tabs', async ({ page }) => {
     await page.goto('/');
 
