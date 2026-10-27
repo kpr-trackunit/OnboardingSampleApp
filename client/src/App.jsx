@@ -126,6 +126,9 @@ function DashboardTab({ data, loading, error }) {
           <div className="customer-meta">
             <span>📍 {item.customerRegion}</span>
             <span>🏭 {item.customerIndustry}</span>
+            {item.daysWaiting != null && (
+              <span className="days-waiting">⏳ Waiting {item.daysWaiting} {item.daysWaiting === 1 ? 'day' : 'days'}</span>
+            )}
           </div>
 
           <div className="progress-section">

@@ -1,6 +1,6 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
-const { buildQueue, needsAttention, sortQueue } = require('./queue');
+const { buildQueue, needsAttention, daysWaiting, sortQueue } = require('./queue');
 const { createDefaultOnboardingSteps } = require('./index');
 
 const acme = { id: 'cust_001', name: 'Acme', industry: 'Manufacturing', region: 'EMEA' };
@@ -104,5 +104,41 @@ describe('sortQueue', () => {
 
   it('should return an empty array for an empty queue', () => {
     assert.deepStrictEqual(sortQueue([]), []);
+  });
+});
+
+describe('daysWaiting', () => {
+  const now = new Date('2025-02-01T12:00:00Z');
+
+  it('should be 0 on the same day', () => {
+    assert.strictEqual(daysWaiting('2025-02-01T08:00:00Z', now), 0);
+  });
+
+  it('should count whole days', () => {
+    assert.strictEqual(daysWaiting('2025-01-20T12:00:00Z', now), 12);
+    assert.strictEqual(daysWaiting('2025-01-31T12:00:00Z', now), 1);
+  });
+
+  it('should round a partial day down', () => {
+    assert.strictEqual(daysWaiting('2025-01-30T13:00:00Z', now), 1);
+  });
+
+  it('should return null for a missing date', () => {
+    assert.strictEqual(daysWaiting(undefined, now), null);
+    assert.strictEqual(daysWaiting(null, now), null);
+    assert.strictEqual(daysWaiting('', now), null);
+  });
+
+  it('should return null for an invalid date', () => {
+    assert.strictEqual(daysWaiting('not a date', now), null);
+  });
+
+  it('should be added to each queue row, using the given now', () => {
+    const [withDate, withoutDate] = buildQueue(
+      [{ ...acme, createdAt: '2025-01-20T12:00:00Z' }, globex], [], now
+    );
+
+    assert.strictEqual(withDate.daysWaiting, 12);
+    assert.strictEqual(withoutDate.daysWaiting, null);
   });
 });
