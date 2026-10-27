@@ -6,7 +6,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const DEFAULT_DATA_DIR = path.join(__dirname, '../../../sample-data');
+// IMPORT_DATA_DIR points the server at another folder, e.g. tests/fixtures/import for demos
+const DEFAULT_DATA_DIR = process.env.IMPORT_DATA_DIR
+  ? path.resolve(process.env.IMPORT_DATA_DIR)
+  : path.join(__dirname, '../../../sample-data');
 
 // Known CSV files and the canonical entity each one holds, in import order
 const ENTITY_FILES = [

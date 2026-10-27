@@ -32,4 +32,38 @@ test.describe('Import Tab', () => {
     await expect(page.locator('.records-table tbody tr').first()).toContainText('Riverside Manufacturing LLC');
     await expect(page.locator('.records-table tbody tr').first()).toContainText('2023-01-15');
   });
+
+  test('should not duplicate clients when importing twice', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Import', exact: true }).click();
+
+    const importAbc = page.locator('tr[data-source="abc-accounting"]').getByRole('button', { name: 'Import clients' });
+    await importAbc.click();
+    await expect(page.locator('.import-summary')).toContainText('Imported 10 clients');
+    await importAbc.click();
+    await expect(importAbc).toBeEnabled();
+
+    await expect(page.locator('.records-table tbody tr')).toHaveCount(10);
+    await expect(page.locator('.import-errors')).toHaveCount(0);
+  });
+
+  test('should import XYZ and Premier clients with standard values and ISO dates', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Import', exact: true }).click();
+
+    await page.locator('tr[data-source="xyz-financial-services"]').getByRole('button', { name: 'Import clients' }).click();
+    await expect(page.locator('.import-summary')).toContainText('Imported 12 clients');
+    const apex = page.locator('.records-table tbody tr').filter({ hasText: 'Apex Digital Marketing' });
+    await expect(apex).toContainText('2023-02-10');
+    await expect(apex).toContainText('active');
+    await expect(apex).toContainText('TECH');
+
+    await page.locator('tr[data-source="premier-bookkeeping"]').getByRole('button', { name: 'Import clients' }).click();
+    await expect(page.locator('.import-result h3')).toHaveText('Premier Bookkeeping');
+    await expect(page.locator('.import-summary')).toContainText('Imported 12 clients');
+    const dockside = page.locator('.records-table tbody tr').filter({ hasText: 'Dockside Imports' });
+    await expect(dockside).toContainText('2022-01-28');
+    await expect(dockside).toContainText('inactive');
+    await expect(dockside).toContainText('DORMANT');
+  });
 });

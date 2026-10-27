@@ -41,6 +41,14 @@ describe('Tenant routes', () => {
       assert.strictEqual(acme.plan, 'professional');
       assert.ok(acme.createdAt);
     });
+
+    it('should prefill the seeded tenant region from its customer', async () => {
+      const res = await fetch(`${baseUrl}/api/tenants`);
+      const [tenant] = await res.json();
+
+      assert.ok(tenant.region);
+      assert.strictEqual(tenant.region, store.getCustomerById(tenant.customerId).region);
+    });
   });
 
   describe('PATCH /api/tenants/:customerId/status', () => {
@@ -300,7 +308,11 @@ describe('Tenant routes', () => {
       original = { ...store.getTenantByCustomerId(customerId) };
     });
     afterEach(() => {
-      store.updateTenant(customerId, { plan: original.plan, status: original.status });
+      store.updateTenant(customerId, {
+        plan: original.plan,
+        region: original.region,
+        status: original.status
+      });
     });
 
     it('should change the plan', async () => {
@@ -340,6 +352,36 @@ describe('Tenant routes', () => {
 
       assert.strictEqual(res.status, 200);
       assert.strictEqual(tenant.plan, 'starter');
+      assert.strictEqual(tenant.status, 'active');
+    });
+
+    it('should change the region', async () => {
+      const newRegion = original.region === 'EU' ? 'APAC' : 'EU';
+      const res = await patch(customerId, { region: newRegion });
+      const tenant = await res.json();
+
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(tenant.region, newRegion);
+      assert.strictEqual(store.getTenantByCustomerId(customerId).region, newRegion);
+    });
+
+    it('should reject an unknown region with 400', async () => {
+      const res = await patch(customerId, { region: 'Mars' });
+      const body = await res.json();
+
+      assert.strictEqual(res.status, 400);
+      assert.match(body.error, /Invalid region/);
+      assert.strictEqual(store.getTenantByCustomerId(customerId).region, original.region);
+    });
+
+    it('should allow a region change while the tenant is active', async () => {
+      store.updateTenant(customerId, { status: 'active' });
+
+      const res = await patch(customerId, { region: 'UK' });
+      const tenant = await res.json();
+
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(tenant.region, 'UK');
       assert.strictEqual(tenant.status, 'active');
     });
 

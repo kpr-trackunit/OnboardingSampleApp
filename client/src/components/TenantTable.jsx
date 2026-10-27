@@ -17,10 +17,13 @@ const STATUS_ACTIONS = {
 // Matches TENANT_PLANS in server/src/models/index.js
 const PLANS = ['starter', 'professional', 'enterprise'];
 
-// Number of header columns; the history sub-row spans them all
-const COLUMN_COUNT = 5;
+// Matches TENANT_REGIONS in server/src/models/index.js
+const REGIONS = ['North America', 'EU', 'UK', 'APAC'];
 
-function TenantTable({ tenants, onStatusChange, busyCustomerId, onPlanChange }) {
+// Number of header columns; the history sub-row spans them all
+const COLUMN_COUNT = 6;
+
+function TenantTable({ tenants, onStatusChange, busyCustomerId, onPlanChange, onRegionChange }) {
   // customerIds whose history sub-row is open
   const [openHistory, setOpenHistory] = useState(() => new Set());
   const toggleHistory = customerId => setOpenHistory(current => {
@@ -37,6 +40,7 @@ function TenantTable({ tenants, onStatusChange, busyCustomerId, onPlanChange }) 
           <th>Customer</th>
           <th>Status</th>
           <th>Plan</th>
+          <th>Region</th>
           <th>Created</th>
           <th>Actions</th>
         </tr>
@@ -58,6 +62,7 @@ function TenantTable({ tenants, onStatusChange, busyCustomerId, onPlanChange }) 
               />
             </td>
             <td><PlanSelect tenant={tenant} onPlanChange={onPlanChange} /></td>
+            <td><RegionSelect tenant={tenant} onRegionChange={onRegionChange} /></td>
             <td>{new Date(tenant.createdAt).toLocaleDateString()}</td>
             <td className="tenant-actions">
               <StatusActions
@@ -192,6 +197,25 @@ function PlanSelect({ tenant, onPlanChange }) {
       onChange={e => onPlanChange(tenant.customerId, e.target.value)}
     >
       {PLANS.map(plan => <option key={plan} value={plan}>{plan}</option>)}
+    </select>
+  );
+}
+
+// Region can be changed at any status; saves as soon as a new region is picked.
+// A region prefilled from the customer that isn't in the list is still offered, so it isn't lost.
+function RegionSelect({ tenant, onRegionChange }) {
+  const regions = tenant.region && !REGIONS.includes(tenant.region)
+    ? [tenant.region, ...REGIONS]
+    : REGIONS;
+  return (
+    <select
+      className="region-select"
+      aria-label={`Region for ${tenant.customerName}`}
+      value={tenant.region || ''}
+      onChange={e => onRegionChange(tenant.customerId, e.target.value)}
+    >
+      {!tenant.region && <option value="" disabled>Select region</option>}
+      {regions.map(region => <option key={region} value={region}>{region}</option>)}
     </select>
   );
 }
