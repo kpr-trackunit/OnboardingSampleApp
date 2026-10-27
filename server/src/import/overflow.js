@@ -37,10 +37,10 @@ function rejoinOverflow(header, fields, mapping) {
     if (column) fieldByColumn[column] = field;
   });
 
-  // Free-text columns are unmapped columns or ones mapped to a text field (not the ID)
+  // Free-text columns are unmapped columns or ones mapped to a text field (not an ID or a reference)
   const isFreeText = column => {
     const field = fieldByColumn[column];
-    return !field || (targetFields[field].type === 'text' && field !== 'sourceId');
+    return !field || (targetFields[field].type === 'text' && field !== 'sourceId' && !targetFields[field].references);
   };
 
   const candidates = header

@@ -299,8 +299,8 @@ function ImportTab() {
   const [importing, setImporting] = useState(null);
   const [result, setResult] = useState(null);
 
-  useEffect(() => {
-    fetch('/api/import/sources')
+  function loadSources() {
+    return fetch('/api/import/sources')
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
@@ -314,6 +314,10 @@ function ImportTab() {
         setError(err.message);
         setLoading(false);
       });
+  }
+
+  useEffect(() => {
+    loadSources();
   }, []);
 
   async function runImport(source, file) {
@@ -332,6 +336,8 @@ function ImportTab() {
       setResult({ source, summary: { entity: file.entity }, records: [], error: err.message });
     } finally {
       setImporting(null);
+      // Importing one entity can unlock another (e.g. contacts once clients are in)
+      loadSources();
     }
   }
 
@@ -378,13 +384,16 @@ function ImportTab() {
               <td>{file.rowCount} rows</td>
               <td>
                 {file.importable ? (
-                  <button
-                    className="button"
-                    disabled={importing !== null}
-                    onClick={() => runImport(source, file)}
-                  >
-                    {importing === `${source.sourceKey}-${file.entity}` ? 'Importing...' : `Import ${file.entity}`}
-                  </button>
+                  <>
+                    <button
+                      className="button"
+                      disabled={importing !== null || Boolean(file.waitingFor)}
+                      onClick={() => runImport(source, file)}
+                    >
+                      {importing === `${source.sourceKey}-${file.entity}` ? 'Importing...' : `Import ${file.entity}`}
+                    </button>
+                    {file.waitingFor && <span className="muted waiting-for"> Import {file.waitingFor} first</span>}
+                  </>
                 ) : (
                   <span className="muted">No mapping yet</span>
                 )}
@@ -408,10 +417,13 @@ function ImportResult({ source, summary, records, error }) {
     );
   }
 
-  // Show canonical fields; picklist originals (<field>Source) appear under their standard value
+  // Show canonical fields; picklist originals (<field>Source) appear under their standard value.
+  // A contact's owning client shows as one "client" column: its name, with its sourceId below
+  const hidden = ['id', 'customerId', 'clientSourceId'];
   const columns = records.length > 0
-    ? Object.keys(records[0]).filter(key => !['id', 'customerId'].includes(key) && !key.endsWith('Source'))
+    ? Object.keys(records[0]).filter(key => !hidden.includes(key) && !key.endsWith('Source'))
     : [];
+  const header = column => (column === 'clientName' ? 'client' : column);
 
   return (
     <div className="import-result">
@@ -431,14 +443,15 @@ function ImportResult({ source, summary, records, error }) {
 
       <table className="data-table records-table">
         <thead>
-          <tr>{columns.map(column => <th key={column}>{column}</th>)}</tr>
+          <tr>{columns.map(column => <th key={column}>{header(column)}</th>)}</tr>
         </thead>
         <tbody>
           {records.map(record => (
             <tr key={record.id}>
               {columns.map(column => (
-                <td key={column}>
+                <td key={column} className={column === 'clientName' ? 'owning-client' : undefined}>
                   {formatValue(record[column])}
+                  {column === 'clientName' && <div className="muted">{record.clientSourceId}</div>}
                   {record[`${column}Source`] !== undefined && record[`${column}Source`] !== record[column] && (
                     <div className="muted">{record[`${column}Source`]}</div>
                   )}

@@ -115,6 +115,79 @@ function seedMappings() {
       dateFormat: 'DD-MM-YYYY',
       dateFormatDetected: 'detected',
       updatedAt: SEED_TIMESTAMP
+    },
+    {
+      sourceKey: 'abc-accounting',
+      label: 'ABC Accounting',
+      entity: 'contacts',
+      columns: {
+        sourceId: 'Contact ID',
+        clientSourceId: 'Client ID',
+        firstName: 'First Name',
+        lastName: 'Last Name',
+        email: 'Email',
+        phone: 'Phone',
+        role: 'Role',
+        active: 'Status'
+      },
+      values: {
+        active: {
+          // A pending contact isn't active yet
+          map: { 'Active': true, 'Inactive': false, 'Pending': false },
+          default: false
+        }
+      },
+      dateFormat: 'MM/DD/YYYY',
+      dateFormatDetected: 'detected',
+      updatedAt: SEED_TIMESTAMP
+    },
+    {
+      sourceKey: 'xyz-financial-services',
+      label: 'XYZ Financial Services',
+      entity: 'contacts',
+      columns: {
+        sourceId: 'contactId',
+        clientSourceId: 'clientCode',
+        firstName: 'firstName',
+        lastName: 'lastName',
+        email: 'emailAddress',
+        phone: 'phoneNumber',
+        role: 'jobTitle',
+        active: 'isActive'
+      },
+      values: {
+        active: {
+          map: { 'Y': true, 'N': false, 'P': false },
+          default: false
+        }
+      },
+      dateFormat: 'YYYY-MM-DD',
+      dateFormatDetected: 'detected',
+      updatedAt: SEED_TIMESTAMP
+    },
+    {
+      sourceKey: 'premier-bookkeeping',
+      label: 'Premier Bookkeeping',
+      entity: 'contacts',
+      columns: {
+        sourceId: 'contact_ref',
+        clientSourceId: 'customer_id',
+        firstName: 'given_name',
+        lastName: 'family_name',
+        email: 'email',
+        phone: 'telephone',
+        role: 'position',
+        active: 'contact_status'
+      },
+      values: {
+        active: {
+          map: { 'Active': true, 'Dormant': false, 'Suspended': false },
+          default: false
+        }
+      },
+      dateFormat: 'DD-MM-YYYY',
+      dateFormatDetected: 'detected',
+      updatedAt: SEED_TIMESTAMP
     }
   ];
 }
