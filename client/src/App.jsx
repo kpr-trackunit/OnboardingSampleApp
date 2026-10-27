@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { saveCustomer } from './api';
 import CustomerDetails from './components/CustomerDetails';
 import TenantSetupTab from './components/TenantSetupTab';
+import SummaryStrip from './components/SummaryStrip';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -118,6 +119,7 @@ function DashboardTab({ data, loading, error }) {
       <p style={{ color: '#6b7280', marginBottom: '20px' }}>
         {data.length} customer(s) awaiting onboarding
       </p>
+      <SummaryStrip />
 
       {data.map(item => (
         <div key={item.customerId} className="customer-card">
