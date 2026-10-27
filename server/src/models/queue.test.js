@@ -174,3 +174,53 @@ describe('daysWaiting', () => {
     assert.strictEqual(withoutDate.daysWaiting, null);
   });
 });
+
+describe('currentStep', () => {
+  const { currentStep } = require('./queue');
+
+  const withStatuses = (...statuses) =>
+    createDefaultOnboardingSteps().map((step, i) => ({ ...step, status: statuses[i] }));
+
+  it('should return the first step when none are done', () => {
+    const steps = createDefaultOnboardingSteps();
+
+    assert.deepStrictEqual(currentStep(steps), { id: steps[0].id, name: steps[0].name });
+  });
+
+  it('should return the lowest-order step that is not completed', () => {
+    const steps = withStatuses('completed', 'in_progress', 'pending', 'pending');
+
+    assert.deepStrictEqual(currentStep(steps), { id: steps[1].id, name: steps[1].name });
+  });
+
+  it('should go by order, not array position', () => {
+    const steps = withStatuses('completed', 'pending', 'pending', 'completed').reverse();
+    const expected = steps.find(s => s.order === 2);
+
+    assert.deepStrictEqual(currentStep(steps), { id: expected.id, name: expected.name });
+  });
+
+  it('should return null when every step is completed', () => {
+    assert.strictEqual(currentStep(withStatuses('completed', 'completed', 'completed', 'completed')), null);
+  });
+
+  it('should treat a failed step as the current step', () => {
+    const steps = withStatuses('completed', 'completed', 'failed', 'pending');
+
+    assert.deepStrictEqual(currentStep(steps), { id: steps[2].id, name: steps[2].name });
+  });
+
+  it('should be on each queue row', () => {
+    const steps = withStatuses('completed', 'pending', 'pending', 'pending');
+    const [done, fresh] = buildQueue(
+      [acme, globex],
+      [
+        { customerId: 'cust_001', steps: withStatuses('completed', 'completed', 'completed', 'completed') },
+        { customerId: 'cust_002', steps }
+      ]
+    );
+
+    assert.strictEqual(done.currentStep, null);
+    assert.deepStrictEqual(fresh.currentStep, { id: steps[1].id, name: steps[1].name });
+  });
+});
