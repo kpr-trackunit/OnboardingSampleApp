@@ -245,6 +245,7 @@ Intentionally boring and fast:
 | GET | `/api/customers/:id/onboarding` | Get onboarding state |
 | GET | `/api/onboarding` | Dashboard view (all states + customer info) |
 | GET | `/api/tenants/:customerId` | Get tenant by customer ID |
+| GET | `/api/import/sources` | Customer data files in `sample-data/` waiting to be imported, with row counts |
 
 ---
 
