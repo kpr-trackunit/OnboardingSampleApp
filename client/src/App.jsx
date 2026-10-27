@@ -601,6 +601,9 @@ function ImportResult({ source, summary, records, error }) {
         Imported {summary.imported} {summary.entity}
         {summary.rejected > 0 && `, ${summary.rejected} rejected`}
       </p>
+      {summary.dateFormat && (
+        <p className="muted" style={{ marginBottom: '12px' }}>Dates read as {summary.dateFormat}</p>
+      )}
 
       <table className="data-table records-table">
         <thead>
