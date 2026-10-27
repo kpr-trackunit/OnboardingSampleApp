@@ -21,7 +21,8 @@
   color: #9ca3af;
 }
 
-.customer-info-table input {
+.customer-info-table input,
+.customer-info-table select {
   width: 100%;
   padding: 6px 8px;
   box-sizing: border-box;
@@ -41,4 +42,8 @@
   font-size: 0.85rem;
   margin-top: 4px;
   white-space: normal;
+}
+
+.customer-info-table [aria-invalid='true'] {
+  border: 1px solid #dc2626;
 }

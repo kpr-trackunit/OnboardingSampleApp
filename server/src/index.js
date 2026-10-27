@@ -1,7 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const store = require('./data/store');
-const { createCustomer } = require('./models');
+const { createCustomer, REGIONS } = require('./models');
+const { CUSTOMER_INFO_FIELDS, validateCustomerInfo } = require('./models/customerInfoValidation');
 const { buildQueue, summarise } = require('./models/queue');
 const { ImportError, listImportSources, importEntity, getImported } = require('./import/importer');
 const { requireActiveTenant } = require('./routes/importGuard');
@@ -9,8 +10,6 @@ const { requireActiveTenant } = require('./routes/importGuard');
 const app = express();
 const PORT = process.env.PORT || 3001;
 const ISSUE_STATUSES = ['open', 'in-progress', 'resolved'];
-// Customer Info fields CS can edit on the Customer Info tab
-const INFO_FIELDS = ['industry', 'region', 'contactEmail'];
 
 // Middleware
 app.use(cors());
@@ -24,6 +23,12 @@ app.get('/api/health', (req, res) => {
 // Get all customers
 app.get('/api/customers', (req, res) => {
   res.json(store.getCustomers());
+});
+
+// Allowed values for Customer.region and Tenant.region (models REGIONS), so
+// the client's region dropdowns show exactly what the server accepts
+app.get('/api/regions', (req, res) => {
+  res.json(REGIONS);
 });
 
 // Add a customer (stub: name only)
@@ -40,19 +45,15 @@ app.put('/api/customers/:id', (req, res) => {
   const body = req.body || {};
   const { name, config, issues } = body;
   const updates = {};
-  // Info fields: strings, trimmed. Errors are keyed by field so the Customer
-  // Info row can show each one next to its input.
-  const errors = {};
-  for (const field of INFO_FIELDS) {
-    if (body[field] === undefined) continue;
-    if (typeof body[field] !== 'string') {
-      errors[field] = 'Must be text';
-      continue;
-    }
-    updates[field] = body[field].trim();
-  }
+  // Info fields: validated (models/customerInfoValidation.js), then trimmed.
+  // Any error rejects the whole update, so nothing is saved. Errors are keyed
+  // by field so the Customer Info row can show each one next to its input.
+  const errors = validateCustomerInfo(body);
   if (Object.keys(errors).length > 0) {
     return res.status(400).json({ error: 'Some fields are invalid', errors });
+  }
+  for (const field of CUSTOMER_INFO_FIELDS) {
+    if (body[field] !== undefined) updates[field] = body[field].trim();
   }
   if (name !== undefined) {
     if (typeof name !== 'string' || !name.trim()) {

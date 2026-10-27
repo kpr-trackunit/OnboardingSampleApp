@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const express = require('express');
 const tenantsRouter = require('./tenants');
 const store = require('../data/store');
-const { calculateProgress } = require('../models');
+const { calculateProgress, REGIONS } = require('../models');
 
 describe('Tenant routes', () => {
   let server;
@@ -307,6 +307,17 @@ describe('Tenant routes', () => {
       assert.strictEqual(res.status, 400);
       assert.match(body.error, /Invalid region/);
       assert.strictEqual(store.getTenantByCustomerId(customerId).region, original.region);
+    });
+
+    it('should accept every region in the shared REGIONS list, including LATAM', async () => {
+      for (const region of REGIONS) {
+        const res = await patch(customerId, { region });
+        const tenant = await res.json();
+
+        assert.strictEqual(res.status, 200, region);
+        assert.strictEqual(tenant.region, region);
+      }
+      assert.ok(REGIONS.includes('LATAM'));
     });
 
     it('should allow a region change while the tenant is active', async () => {

@@ -28,9 +28,15 @@
 // Allowed values for Tenant.plan
 const TENANT_PLANS = ['starter', 'professional', 'enterprise'];
 
-// Regions a tenant can be hosted in (data residency). Proposed list from
-// tickets/tenant-setup.md open question 1, pending confirmation.
-const TENANT_REGIONS = ['North America', 'EU', 'UK', 'APAC'];
+// The one list of allowed regions, shared by Customer.region (validated on
+// save, tickets/customer-info.md slice 3) and Tenant.region (data residency).
+// LATAM is customer-info.md's proposal; the list is pending confirmation
+// (customer-info.md Clarify 2, tenant-setup.md open question 1).
+const REGIONS = ['North America', 'EU', 'UK', 'APAC', 'LATAM'];
+
+// Regions a tenant can be hosted in. An alias of REGIONS, so tenants and
+// customers always allow the same values.
+const TENANT_REGIONS = REGIONS;
 
 /**
  * @typedef {Object} OnboardingStep
@@ -258,6 +264,7 @@ function createImportRun(data) {
 
 module.exports = {
   TENANT_PLANS,
+  REGIONS,
   TENANT_REGIONS,
   createCustomer,
   createTenant,

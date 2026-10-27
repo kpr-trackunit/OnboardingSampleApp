@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import './TenantTable.css';
+import { useRegions, regionOptions } from '../regions';
 
 // Next status actions offered per status (mirrors TENANT_STATUS_TRANSITIONS on the server).
 // needsReason: the action asks for a failure reason before it is sent.
@@ -15,9 +16,6 @@ const STATUS_ACTIONS = {
 
 // Matches TENANT_PLANS in server/src/models/index.js
 const PLANS = ['starter', 'professional', 'enterprise'];
-
-// Matches TENANT_REGIONS in server/src/models/index.js
-const REGIONS = ['North America', 'EU', 'UK', 'APAC'];
 
 function TenantTable({ tenants, onStatusChange, busyCustomerId, onPlanChange, onRegionChange }) {
   return (
@@ -141,10 +139,9 @@ function PlanSelect({ tenant, onPlanChange }) {
 
 // Region can be changed at any status; saves as soon as a new region is picked.
 // A region prefilled from the customer that isn't in the list is still offered, so it isn't lost.
+// The list comes from the server (GET /api/regions), shared with Customer Info.
 function RegionSelect({ tenant, onRegionChange }) {
-  const regions = tenant.region && !REGIONS.includes(tenant.region)
-    ? [tenant.region, ...REGIONS]
-    : REGIONS;
+  const regions = regionOptions(useRegions(), tenant.region);
   return (
     <select
       className="region-select"
