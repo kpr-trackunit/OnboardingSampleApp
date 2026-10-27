@@ -4,12 +4,47 @@
 
 const express = require('express');
 const store = require('../data/store');
+const { TENANT_PLANS } = require('../models');
 
 const router = express.Router();
+
+// Fields that PATCH /:customerId may change, each with a validator that
+// returns an error message, or null when the value is valid.
+const EDITABLE_FIELDS = {
+  plan: value => (TENANT_PLANS.includes(value)
+    ? null
+    : `Invalid plan. Must be one of: ${TENANT_PLANS.join(', ')}`)
+};
 
 // Get all tenants with their customer name
 router.get('/', (req, res) => {
   res.json(store.getTenantList());
+});
+
+// Edit a tenant's editable fields. Allowed at any status.
+router.patch('/:customerId', (req, res) => {
+  const body = req.body || {};
+  const updates = {};
+
+  for (const [field, validate] of Object.entries(EDITABLE_FIELDS)) {
+    if (!(field in body)) continue;
+    const error = validate(body[field]);
+    if (error) return res.status(400).json({ error });
+    updates[field] = body[field];
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({
+      error: `No editable fields provided. Editable fields: ${Object.keys(EDITABLE_FIELDS).join(', ')}`
+    });
+  }
+
+  const tenant = store.updateTenant(req.params.customerId, updates);
+  if (!tenant) {
+    return res.status(404).json({ error: 'Tenant not found' });
+  }
+
+  res.json(tenant);
 });
 
 module.exports = router;
