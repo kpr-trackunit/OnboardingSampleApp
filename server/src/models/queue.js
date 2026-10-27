@@ -10,6 +10,7 @@ const { createDefaultOnboardingSteps, calculateProgress } = require('./index');
  * @property {string} customerName - Customer name
  * @property {string} customerIndustry - Customer industry ('' if unknown)
  * @property {string} customerRegion - Customer region ('' if unknown)
+ * @property {string|null} customerCreatedAt - When the customer was created (ISO timestamp), or null if unknown
  * @property {number|null} daysWaiting - Whole days since the customer was created, or null if unknown
  * @property {import('./index').OnboardingStep[]} steps - The customer's steps, or the default pending steps
  * @property {number} progressPercent - Progress calculated from the steps (0-100)
@@ -36,6 +37,7 @@ function buildQueue(customers, states, now = new Date()) {
       customerIndustry: customer.industry || '',
       customerRegion: customer.region || '',
       openIssueCount: openIssueCount(customer.issues),
+      customerCreatedAt: customer.createdAt || null,
       daysWaiting: daysWaiting(customer.createdAt, now),
       steps,
       currentStep: currentStep(steps),
@@ -126,11 +128,18 @@ function needsAttention(steps) {
 /**
  * Sort keys for the queue, compared in order: the first key that differs decides.
  * Each key maps a row to a number; lower numbers come first.
- * Add keys here to refine the order (e.g. waiting time, done last).
+ * Add or change keys here to refine the order.
  * @type {Array<(row: QueueRow) => number>}
  */
 const QUEUE_SORT_KEYS = [
-  row => (row.needsAttention ? 0 : 1)
+  // Needs attention first, then active (in progress / not started), done (100%) last
+  row => (row.needsAttention ? 0 : row.progressPercent === 100 ? 2 : 1),
+  // Oldest customer first. A missing or invalid date sorts last; a finite
+  // sentinel (not Infinity) keeps two missing dates comparing equal (0, not NaN).
+  row => {
+    const t = Date.parse(row.customerCreatedAt);
+    return Number.isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
+  }
 ];
 
 /**
@@ -148,7 +157,8 @@ function compareQueueRows(a, b) {
 }
 
 /**
- * Returns the queue in work order: rows needing attention first. The sort is
+ * Returns the queue in work order (see QUEUE_SORT_KEYS): rows needing attention
+ * first, then active rows oldest first, done rows last. The sort is
  * stable, so rows that compare equal keep their existing order. Does not
  * mutate the input.
  * @param {QueueRow[]} rows
