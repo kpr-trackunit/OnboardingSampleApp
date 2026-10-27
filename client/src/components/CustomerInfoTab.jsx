@@ -30,11 +30,20 @@ function CustomerInfoTab() {
       .finally(() => setLoading(false));
   }, []);
 
-  // Saves one customer's info and swaps the saved customer into the list.
-  // Errors are re-thrown so the row can show them and stay in edit mode.
+  // Saves one customer's info, then re-fetches the list so anything the
+  // server derives from it (e.g. missingInfo for the completeness badge) is
+  // fresh. If the re-fetch fails, the saved customer is swapped in instead.
+  // Save errors are re-thrown so the row can show them and stay in edit mode.
   const handleSave = async (id, info) => {
     const saved = await saveCustomer(id, info);
-    setCustomers(prev => prev.map(c => (c.id === id ? saved : c)));
+    try {
+      const res = await fetch('/api/customers');
+      const data = res.ok ? await res.json() : null;
+      if (!Array.isArray(data)) throw new Error('Re-fetch failed');
+      setCustomers(data);
+    } catch {
+      setCustomers(prev => prev.map(c => (c.id === id ? saved : c)));
+    }
     return saved;
   };
 

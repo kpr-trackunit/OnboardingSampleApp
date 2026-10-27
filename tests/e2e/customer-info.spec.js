@@ -84,8 +84,12 @@ test.describe('Customer Info', () => {
 
     const saved = page.waitForResponse(r =>
       r.url().endsWith(`/api/customers/${xyz.id}`) && r.request().method() === 'PUT');
+    // After saving, the tab re-fetches the list so server-derived data is fresh
+    const refetched = page.waitForResponse(r =>
+      r.url().endsWith('/api/customers') && r.request().method() === 'GET');
     await row.getByRole('button', { name: 'Save' }).click();
     expect((await saved).ok()).toBeTruthy();
+    expect((await refetched).ok()).toBeTruthy();
 
     // The row leaves edit mode and shows the saved (trimmed) values
     await expect(row.getByRole('button', { name: 'Edit' })).toBeVisible();
