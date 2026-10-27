@@ -130,6 +130,9 @@ function DashboardTab() {
             {item.openIssueCount > 0 && (
               <span className="open-issues">{item.openIssueCount} open issue{item.openIssueCount === 1 ? '' : 's'}</span>
             )}
+            {item.daysWaiting != null && (
+              <span className="days-waiting">⏳ Waiting {item.daysWaiting} {item.daysWaiting === 1 ? 'day' : 'days'}</span>
+            )}
           </div>
 
           <div className="progress-section">

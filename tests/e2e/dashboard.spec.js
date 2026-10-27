@@ -74,6 +74,15 @@ test.describe('Onboarding Dashboard', () => {
     expect(sum).toBe(cardCount);
   });
 
+  test('should show how many days each customer has been waiting', async ({ page }) => {
+    await page.goto('/');
+
+    // At least one seeded customer has a createdAt, so shows a whole number of days
+    const waiting = page.locator('.customer-card .days-waiting');
+    await expect(waiting.first()).toHaveText(/^⏳ Waiting \d+ days?$/);
+    await expect(page.locator('.customer-meta').filter({ hasText: /\bNaN\b/ })).toHaveCount(0);
+  });
+
   test('should switch between tabs', async ({ page }) => {
     await page.goto('/');
 
