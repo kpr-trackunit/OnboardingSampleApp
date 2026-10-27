@@ -6,6 +6,7 @@ import DataMappingTab from './components/DataMappingTab';
 import SummaryStrip from './components/SummaryStrip';
 import CurrentStepBadge from './components/CurrentStepBadge';
 import AttentionBadge, { attentionCardClass } from './components/AttentionBadge';
+import StepFilter, { ALL, matchesStepFilter } from './components/StepFilter';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -71,6 +72,7 @@ function DashboardTab() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [stepFilter, setStepFilter] = useState(ALL);
 
   useEffect(() => {
     let cancelled = false;
@@ -122,7 +124,8 @@ function DashboardTab() {
       </p>
       <SummaryStrip />
 
-      {data.map(item => (
+      <StepFilter rows={data} value={stepFilter} onChange={setStepFilter} />
+      {data.filter(item => matchesStepFilter(item, stepFilter)).map(item => (
         <div key={item.customerId} className={attentionCardClass(item.needsAttention)}>
           <h3>{item.customerName}<AttentionBadge needsAttention={item.needsAttention} /></h3>
           <CurrentStepBadge step={item.currentStep} />

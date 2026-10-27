@@ -1,0 +1,40 @@
+.step-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.step-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: #374151;
+  cursor: pointer;
+}
+
+.step-filter-chip input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.step-filter-chip:focus-within {
+  outline: 2px solid #93c5fd;
+  outline-offset: 1px;
+}
+
+.step-filter-chip--active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.step-filter-count {
+  font-weight: 600;
+}

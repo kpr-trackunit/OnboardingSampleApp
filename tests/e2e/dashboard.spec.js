@@ -133,3 +133,65 @@ test.describe('Dashboard current step', () => {
     await expect(card.locator('.current-step-badge')).toHaveText(`Next: ${firstStep.name}`);
   });
 });
+
+test.describe('Dashboard step filter', () => {
+  // Use the exact /api/onboarding response the page rendered, so tests running in
+  // parallel that change step statuses can't make the expectations drift.
+  async function openDashboard(page) {
+    const [res] = await Promise.all([
+      page.waitForResponse(r => new URL(r.url()).pathname === '/api/onboarding' && r.ok()),
+      page.goto('/')
+    ]);
+    const queue = await res.json();
+    await expect(page.locator('.customer-card')).toHaveCount(queue.length);
+    return queue;
+  }
+
+  const filter = page => page.getByRole('radiogroup', { name: 'Filter by current step' });
+  const radio = (page, label) => page.getByRole('radio', { name: new RegExp(`^${label} \\d+$`) });
+  const chip = (page, label) => filter(page).locator(radio(page, label));
+  // The radio input is visually hidden; users click the chip (its label)
+  const clickChip = (page, label) =>
+    filter(page).locator('.step-filter-chip').filter({ has: radio(page, label) }).click();
+  const sortedSteps = queue => [...queue[0].steps].sort((a, b) => a.order - b.order);
+
+  test('shows All, each step in order, then Done, with counts', async ({ page }) => {
+    const queue = await openDashboard(page);
+    const expected = [
+      ['All', queue.length],
+      ...sortedSteps(queue).map(s => [s.name, queue.filter(r => r.currentStep?.id === s.id).length]),
+      ['Done', queue.filter(r => r.currentStep === null).length]
+    ];
+
+    expect(expected.map(([label]) => label)).toEqual(
+      ['All', 'Customer Info', 'Data Mapping', 'Tenant Setup', 'Import', 'Done']
+    );
+    await expect(filter(page).locator('.step-filter-chip')).toHaveText(
+      expected.map(([label, count]) => `${label} ${count}`)
+    );
+    await expect(chip(page, 'All')).toBeChecked();
+  });
+
+  test('clicking a chip shows only matching cards; All shows everything again', async ({ page }) => {
+    const queue = await openDashboard(page);
+    const cards = page.locator('.customer-card');
+    const filters = [
+      ...sortedSteps(queue).map(s => ({ label: s.name, rows: queue.filter(r => r.currentStep?.id === s.id) })),
+      { label: 'Done', rows: queue.filter(r => r.currentStep === null) }
+    ];
+    // At least one chip must hide some cards for this test to mean anything
+    expect(queue.length).toBeGreaterThan(0);
+    expect(filters.some(f => f.rows.length < queue.length)).toBeTruthy();
+
+    for (const { label, rows } of filters) {
+      await clickChip(page, label);
+      await expect(chip(page, label)).toBeChecked();
+      await expect(cards).toHaveCount(rows.length);
+      await expect(cards.locator('h3')).toHaveText(rows.map(r => r.customerName));
+    }
+
+    await clickChip(page, 'All');
+    await expect(cards).toHaveCount(queue.length);
+    await expect(cards.locator('h3')).toHaveText(queue.map(r => r.customerName));
+  });
+});
