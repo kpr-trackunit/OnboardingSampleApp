@@ -65,6 +65,21 @@ const TENANT_REGIONS = ['North America', 'EU', 'UK', 'APAC'];
  */
 
 /**
+ * @typedef {Object} Contact
+ * @property {string} id - Unique contact identifier
+ * @property {string} customerId - Customer whose data this came from
+ * @property {string} sourceId - Contact ID in the customer's file
+ * @property {string} clientSourceId - sourceId of the client this contact belongs to
+ * @property {string} firstName
+ * @property {string} lastName
+ * @property {string} email
+ * @property {string} phone - Kept as text, exactly as written (e.g. "+44 7700 100001")
+ * @property {string} role - Job title
+ * @property {boolean|null} active - true | false
+ * @property {string} activeSource - Original active flag value (e.g. "Y", "Active", "Dormant")
+ */
+
+/**
  * @typedef {Object} ValueMap
  * @property {Object<string, string>} map - Source value → standard value
  * @property {string|null} default - Standard value used when a source value isn't mapped
@@ -220,6 +235,27 @@ function createClient(data) {
 }
 
 /**
+ * Creates a new Contact object
+ * @param {Partial<Contact>} data
+ * @returns {Contact}
+ */
+function createContact(data) {
+  return {
+    id: data.id || `contact_${data.customerId}_${data.sourceId}`,
+    customerId: data.customerId || '',
+    sourceId: data.sourceId || '',
+    clientSourceId: data.clientSourceId || '',
+    firstName: data.firstName || '',
+    lastName: data.lastName || '',
+    email: data.email || '',
+    phone: data.phone || '',
+    role: data.role || '',
+    active: data.active ?? null,
+    activeSource: data.activeSource || ''
+  };
+}
+
+/**
  * Creates a new Mapping object
  * @param {Partial<Mapping>} data
  * @returns {Mapping}
@@ -267,6 +303,7 @@ module.exports = {
   TENANT_STATUS_TO_STEP_STATUS,
   canTransitionTenant,
   createClient,
+  createContact,
   createMapping,
   createImportRun
 };

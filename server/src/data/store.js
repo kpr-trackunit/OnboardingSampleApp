@@ -22,7 +22,8 @@ const store = {
   onboardingStates: [],
   mappings: [],
   clients: [],
-  importRuns: []
+  importRuns: [],
+  contacts: []
 };
 
 // Seed with example data
@@ -272,6 +273,23 @@ function saveClients(clients) {
   return clients;
 }
 
+function getContacts(customerId) {
+  return store.contacts.filter(c => c.customerId === customerId);
+}
+
+// Inserts or replaces each contact by customerId + sourceId, so re-importing never duplicates
+function saveContacts(contacts) {
+  contacts.forEach(contact => {
+    const index = store.contacts.findIndex(c => c.customerId === contact.customerId && c.sourceId === contact.sourceId);
+    if (index !== -1) {
+      store.contacts[index] = contact;
+    } else {
+      store.contacts.push(contact);
+    }
+  });
+  return contacts;
+}
+
 function addImportRun(run) {
   store.importRuns.push(run);
   return run;
@@ -305,5 +323,7 @@ module.exports = {
   getClients,
   saveClients,
   addImportRun,
-  getImportRuns
+  getImportRuns,
+  getContacts,
+  saveContacts
 };

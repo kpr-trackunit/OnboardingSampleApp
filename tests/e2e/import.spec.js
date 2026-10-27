@@ -127,4 +127,29 @@ test.describe('Import Tab', () => {
     await expect(dockside).toContainText('inactive');
     await expect(dockside).toContainText('DORMANT');
   });
+
+  test('should import Premier contacts after clients and show each contact\'s client', async ({ page, request }) => {
+    const customerId = await sourceCustomerId(request, 'premier-bookkeeping');
+    await resetTenantToPending(request, customerId);
+    await activateTenant(request, customerId);
+    await openImportTab(page);
+
+    const premier = page.locator('tr[data-source="premier-bookkeeping"]');
+    await premier.getByRole('button', { name: 'Import clients' }).click();
+    await expect(page.locator('.import-summary')).toContainText('Imported 12 clients');
+
+    await premier.getByRole('button', { name: 'Import contacts' }).click();
+    await expect(page.locator('.import-summary')).toContainText('Imported 20 contacts');
+    await expect(page.locator('.records-table thead')).toContainText('client');
+    await expect(page.locator('.records-table tbody tr')).toHaveCount(20);
+
+    const sophie = page.locator('.records-table tbody tr').filter({ hasText: 'Sophie' });
+    await expect(sophie.locator('.owning-client')).toContainText('Artisan Bakery & Cafe');
+    await expect(sophie.locator('.owning-client')).toContainText('PB-0001');
+    await expect(sophie).toContainText('+44 7700 100001');
+
+    const james = page.locator('.records-table tbody tr').filter({ hasText: 'Crawford' });
+    await expect(james.locator('.owning-client')).toContainText('Dockside Imports');
+    await expect(james).toContainText('Dormant');
+  });
 });
