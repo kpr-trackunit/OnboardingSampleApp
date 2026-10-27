@@ -14,6 +14,7 @@ const { createDefaultOnboardingSteps, calculateProgress } = require('./index');
  * @property {import('./index').OnboardingStep[]} steps - The customer's steps, or the default pending steps
  * @property {number} progressPercent - Progress calculated from the steps (0-100)
  * @property {number} openIssueCount - Issues that aren't resolved (0 if none)
+ * @property {{ id: string, name: string } | null} currentStep - The step the customer is waiting on, or null when done
  */
 
 /**
@@ -36,6 +37,7 @@ function buildQueue(customers, states, now = new Date()) {
       openIssueCount: openIssueCount(customer.issues),
       daysWaiting: daysWaiting(customer.createdAt, now),
       steps,
+      currentStep: currentStep(steps),
       progressPercent: calculateProgress(steps)
     };
   });
@@ -93,4 +95,21 @@ function daysWaiting(createdAt, now) {
   return Math.max(0, Math.floor((current - created) / MS_PER_DAY));
 }
 
-module.exports = { buildQueue, openIssueCount, summarise, daysWaiting };
+/**
+ * The step a customer is waiting on: the lowest-`order` step that isn't `completed`.
+ * A `failed` step isn't completed, so it can be the current step.
+ *
+ * Returned as `{ id, name }` rather than just the name: `id` is a stable key for
+ * filtering by step (Slice 9's chips) and `name` is the label to show. Status and
+ * order stay on `steps`, so they aren't duplicated here.
+ * @param {import('./index').OnboardingStep[]} steps
+ * @returns {{ id: string, name: string } | null} The current step, or null when every step is completed
+ */
+function currentStep(steps) {
+  const next = [...(steps || [])]
+    .sort((a, b) => a.order - b.order)
+    .find(step => step.status !== 'completed');
+  return next ? { id: next.id, name: next.name } : null;
+}
+
+module.exports = { buildQueue, openIssueCount, summarise, daysWaiting, currentStep };
