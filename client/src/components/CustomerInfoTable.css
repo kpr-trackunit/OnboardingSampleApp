@@ -45,3 +45,25 @@
   font-weight: 500;
   margin-bottom: 12px;
 }
+
+.customer-info-table input {
+  width: 100%;
+  padding: 6px 8px;
+  box-sizing: border-box;
+}
+
+.customer-info-table .row-actions {
+  white-space: nowrap;
+}
+
+.customer-info-table .row-actions button + button {
+  margin-left: 8px;
+}
+
+.customer-info-table .row-error,
+.customer-info-table .field-error {
+  color: #dc2626;
+  font-size: 0.85rem;
+  margin-top: 4px;
+  white-space: normal;
+}
