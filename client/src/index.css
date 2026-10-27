@@ -152,6 +152,11 @@ header p {
   color: white;
 }
 
+.step-status.failed {
+  background: #dc2626;
+  color: white;
+}
+
 .customer-card {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -199,6 +204,13 @@ header p {
   font-weight: 500;
 }
 
+/* Import is blocked until the source's tenant is active (tenant slice 7) */
+.tenant-notice {
+  margin: 4px 0 0;
+  color: #b45309;
+  font-size: 0.8rem;
+}
+
 .button {
   padding: 6px 14px;
   border: none;
@@ -236,4 +248,33 @@ header p {
   color: #059669;
   font-weight: 500;
   margin-bottom: 12px;
+}
+
+.import-summary.has-errors {
+  color: #dc2626;
+}
+
+.issue-list {
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  font-size: 0.9rem;
+}
+
+.issue-list h4 {
+  margin-bottom: 6px;
+}
+
+.issue-list ul {
+  padding-left: 20px;
+}
+
+.import-errors {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.import-warnings {
+  background: #fffbeb;
+  color: #92400e;
 }

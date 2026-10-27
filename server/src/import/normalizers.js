@@ -3,11 +3,12 @@
  * Convert raw CSV strings into canonical values. Return null when a value can't be parsed.
  */
 
-// Position of each date part per supported format
+// Order of the date parts per supported format. Separators are matched loosely
+// (/, - or .) because customers mix them, which is what makes day/month order ambiguous.
 const DATE_FORMATS = {
-  'MM/DD/YYYY': { pattern: /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/, order: ['month', 'day', 'year'] },
-  'YYYY-MM-DD': { pattern: /^(\d{4})-(\d{1,2})-(\d{1,2})$/, order: ['year', 'month', 'day'] },
-  'DD-MM-YYYY': { pattern: /^(\d{1,2})-(\d{1,2})-(\d{4})$/, order: ['day', 'month', 'year'] }
+  'MM/DD/YYYY': { pattern: /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/, order: ['month', 'day', 'year'] },
+  'YYYY-MM-DD': { pattern: /^(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})$/, order: ['year', 'month', 'day'] },
+  'DD-MM-YYYY': { pattern: /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/, order: ['day', 'month', 'year'] }
 };
 
 /**
@@ -34,6 +35,32 @@ function normalizeDate(value, format) {
 }
 
 /**
+ * Works out which date format a file uses from its date values
+ * @param {string[]} values - Raw date values from the file (blanks are ignored)
+ * @returns {{ format: string|null, status: 'detected'|'ambiguous'|null, candidates: string[] }}
+ *   status is null when no format fits every value
+ */
+function detectDateFormat(values) {
+  const present = values.map(v => String(v).trim()).filter(v => v !== '');
+  if (present.length === 0) return { format: null, status: null, candidates: [] };
+
+  const candidates = Object.keys(DATE_FORMATS)
+    .filter(format => present.every(value => normalizeDate(value, format) !== null));
+
+  if (candidates.length === 1) return { format: candidates[0], status: 'detected', candidates };
+  if (candidates.length > 1) return { format: null, status: 'ambiguous', candidates };
+  return { format: null, status: null, candidates };
+}
+
+/**
+ * True when a value parses as a date in any supported format
+ * @param {string} value
+ */
+function isDateLike(value) {
+  return Object.keys(DATE_FORMATS).some(format => normalizeDate(value, format) !== null);
+}
+
+/**
  * Parses a number such as "2500000.00", "1850000" or "1,850,000"
  * @param {string} value
  * @returns {number|null}
@@ -47,5 +74,7 @@ function normalizeNumber(value) {
 module.exports = {
   DATE_FORMATS,
   normalizeDate,
+  detectDateFormat,
+  isDateLike,
   normalizeNumber
 };

@@ -14,6 +14,8 @@ const { createDefaultOnboardingSteps, calculateProgress } = require('./index');
  * @property {number|null} daysWaiting - Whole days since the customer was created, or null if unknown
  * @property {import('./index').OnboardingStep[]} steps - The customer's steps, or the default pending steps
  * @property {number} progressPercent - Progress calculated from the steps (0-100)
+ * @property {number} openIssueCount - Issues that aren't resolved (0 if none)
+ * @property {{ id: string, name: string } | null} currentStep - The step the customer is waiting on, or null when done
  * @property {boolean} needsAttention - True when any step has failed
  */
 
@@ -34,13 +36,84 @@ function buildQueue(customers, states, now = new Date()) {
       customerName: customer.name || 'Unknown',
       customerIndustry: customer.industry || '',
       customerRegion: customer.region || '',
+      openIssueCount: openIssueCount(customer.issues),
       customerCreatedAt: customer.createdAt || null,
       daysWaiting: daysWaiting(customer.createdAt, now),
       steps,
+      currentStep: currentStep(steps),
       needsAttention: needsAttention(steps),
       progressPercent: calculateProgress(steps)
     };
   });
+}
+
+/**
+ * Counts a customer's known blockers: issues whose status isn't 'resolved'.
+ * @param {{ status: string, title: string }[] | undefined} issues
+ * @returns {number} 0 when the list is missing or empty
+ */
+function openIssueCount(issues) {
+  return (issues || []).filter(issue => issue.status !== 'resolved').length;
+}
+
+/**
+ * @typedef {Object} QueueSummary
+ * @property {number} total - Number of rows in the queue
+ * @property {number} notStarted - 0% and no failed step
+ * @property {number} inProgress - Everything that isn't not started, done or failed
+ * @property {number} done - 100% and no failed step
+ * @property {number} failed - Any step `failed` (wins over every other bucket)
+ */
+
+/**
+ * Buckets every queue row into exactly one state, so the counts add up to the total.
+ * Failed wins: a partly done customer with a failed step counts as failed.
+ * @param {QueueRow[]} queue
+ * @returns {QueueSummary}
+ */
+function summarise(queue) {
+  const summary = { total: 0, notStarted: 0, inProgress: 0, done: 0, failed: 0 };
+  for (const row of queue || []) {
+    summary.total++;
+    if ((row.steps || []).some(s => s.status === 'failed')) summary.failed++;
+    else if (row.progressPercent >= 100) summary.done++;
+    else if (row.progressPercent <= 0) summary.notStarted++;
+    else summary.inProgress++;
+  }
+  return summary;
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Whole days a customer has been waiting since they were created, rounded down.
+ * @param {string|Date|null|undefined} createdAt - When the customer was created
+ * @param {Date} now - Current time (a parameter so it can be tested)
+ * @returns {number|null} Whole days (never negative), or null for a missing or invalid date
+ */
+function daysWaiting(createdAt, now) {
+  if (!createdAt) return null;
+  const created = new Date(createdAt).getTime();
+  const current = new Date(now).getTime();
+  if (Number.isNaN(created) || Number.isNaN(current)) return null;
+  return Math.max(0, Math.floor((current - created) / MS_PER_DAY));
+}
+
+/**
+ * The step a customer is waiting on: the lowest-`order` step that isn't `completed`.
+ * A `failed` step isn't completed, so it can be the current step.
+ *
+ * Returned as `{ id, name }` rather than just the name: `id` is a stable key for
+ * filtering by step (Slice 9's chips) and `name` is the label to show. Status and
+ * order stay on `steps`, so they aren't duplicated here.
+ * @param {import('./index').OnboardingStep[]} steps
+ * @returns {{ id: string, name: string } | null} The current step, or null when every step is completed
+ */
+function currentStep(steps) {
+  const next = [...(steps || [])]
+    .sort((a, b) => a.order - b.order)
+    .find(step => step.status !== 'completed');
+  return next ? { id: next.id, name: next.name } : null;
 }
 
 /**
@@ -95,20 +168,4 @@ function sortQueue(rows) {
   return [...(rows || [])].sort(compareQueueRows);
 }
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-/**
- * Whole days a customer has been waiting since they were created, rounded down.
- * @param {string|Date|null|undefined} createdAt - When the customer was created
- * @param {Date} now - Current time (a parameter so it can be tested)
- * @returns {number|null} Whole days (never negative), or null for a missing or invalid date
- */
-function daysWaiting(createdAt, now) {
-  if (!createdAt) return null;
-  const created = new Date(createdAt).getTime();
-  const current = new Date(now).getTime();
-  if (Number.isNaN(created) || Number.isNaN(current)) return null;
-  return Math.max(0, Math.floor((current - created) / MS_PER_DAY));
-}
-
-module.exports = { buildQueue, needsAttention, daysWaiting, sortQueue, compareQueueRows };
+module.exports = { buildQueue, openIssueCount, summarise, daysWaiting, currentStep, needsAttention, sortQueue, compareQueueRows };
