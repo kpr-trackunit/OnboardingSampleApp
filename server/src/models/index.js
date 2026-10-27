@@ -23,6 +23,9 @@
  * @property {string} createdAt - ISO timestamp
  */
 
+// Allowed values for Tenant.plan
+const TENANT_PLANS = ['starter', 'professional', 'enterprise'];
+
 /**
  * @typedef {Object} OnboardingStep
  * @property {string} id - Step identifier
@@ -172,6 +175,7 @@ function createMapping(data) {
 }
 
 module.exports = {
+  TENANT_PLANS,
   createCustomer,
   createTenant,
   createDefaultOnboardingSteps,
