@@ -83,4 +83,34 @@ test.describe('Customer Info', () => {
     await expect(page.locator('.completeness-count'))
       .toHaveText(`${complete} of ${customers.length} complete`);
   });
+
+  test('Show incomplete only hides complete customers, and turning it off shows everyone', async ({ page, request }) => {
+    const res = await request.get('/api/customers');
+    expect(res.ok()).toBeTruthy();
+    const customers = await res.json();
+    const incomplete = customers.filter(c => c.missingInfo.length > 0);
+    const complete = customers.length - incomplete.length;
+    // Needs both kinds for the filter to show anything
+    expect(incomplete.length).toBeGreaterThan(0);
+    expect(complete).toBeGreaterThan(0);
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Customer Info' }).click();
+    const rows = page.locator('.customer-info-table tbody tr');
+    const count = page.locator('.completeness-count');
+    const toggle = page.getByLabel('Show incomplete only');
+    await expect(rows).toHaveCount(customers.length);
+    await expect(toggle).not.toBeChecked();
+
+    await toggle.check();
+    await expect(rows).toHaveCount(incomplete.length);
+    const ids = await rows.evaluateAll(trs => trs.map(tr => tr.getAttribute('data-customer-id')));
+    expect(ids.sort()).toEqual(incomplete.map(c => String(c.id)).sort());
+    // The count is still the whole list
+    await expect(count).toHaveText(`${complete} of ${customers.length} complete`);
+
+    await toggle.uncheck();
+    await expect(rows).toHaveCount(customers.length);
+    await expect(count).toHaveText(`${complete} of ${customers.length} complete`);
+  });
 });
