@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const store = require('./data/store');
 const { createCustomer } = require('./models');
+const { buildQueue } = require('./models/queue');
 const { ImportError, listImportSources, importEntity, getImported } = require('./import/importer');
 
 const app = express();
@@ -87,23 +88,9 @@ app.get('/api/customers/:id/onboarding', (req, res) => {
   res.json(state);
 });
 
-// Get all onboarding states (dashboard view)
+// Onboarding queue (dashboard view): one row per customer
 app.get('/api/onboarding', (req, res) => {
-  const states = store.getAllOnboardingStates();
-  const customers = store.getCustomers();
-  
-  // Join customer info with onboarding state
-  const dashboard = states.map(state => {
-    const customer = customers.find(c => c.id === state.customerId);
-    return {
-      ...state,
-      customerName: customer?.name || 'Unknown',
-      customerIndustry: customer?.industry || '',
-      customerRegion: customer?.region || ''
-    };
-  });
-  
-  res.json(dashboard);
+  res.json(buildQueue(store.getCustomers(), store.getAllOnboardingStates()));
 });
 
 // Tenant Setup routes (list, and later status/plan/region updates)
