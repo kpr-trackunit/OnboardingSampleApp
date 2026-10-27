@@ -6,15 +6,38 @@ import React from 'react';
  * component so later slices can swap in editors: ColumnMappings gets a header
  * dropdown per field (slice 3), ValueMappings a value/default editor (slice 4),
  * DateFormat a format picker for ambiguous detection (slice 2).
- * @param {{ mapping: object, fields: { field: string, type: string, required: boolean, strict: boolean, values: string[] | null }[] }} props
+ * SourceFile lists the headers of the file being mapped (slice 6), e.g. a new
+ * customer's upload whose mapping is still empty.
+ * @param {{
+ *   mapping: object,
+ *   fields: { field: string, type: string, required: boolean, strict: boolean, values: string[] | null }[],
+ *   file?: { filename: string, uploaded: boolean, headers: string[], rowCount: number } | null
+ * }} props
  */
-function MappingView({ mapping, fields }) {
+function MappingView({ mapping, fields, file }) {
   return (
     <div className="mapping-view" data-entity={mapping.entity}>
+      {file && <SourceFile file={file} />}
       <ColumnMappings columns={mapping.columns} fields={fields} />
       <ValueMappings values={mapping.values} fields={fields.filter(f => f.type === 'picklist')} />
       <DateFormat dateFormat={mapping.dateFormat} detected={mapping.dateFormatDetected} />
     </div>
+  );
+}
+
+// The file's column headers, in file order
+function SourceFile({ file }) {
+  return (
+    <section className="mapping-section source-file">
+      <h3>Source file</h3>
+      <p>
+        <code>{file.filename}</code>{' '}
+        <span className="muted">({file.uploaded ? 'uploaded' : 'sample data'}, {file.rowCount} rows)</span>
+      </p>
+      <ul className="file-headers" aria-label="File headers">
+        {file.headers.map(header => <li key={header}><code>{header}</code></li>)}
+      </ul>
+    </section>
   );
 }
 

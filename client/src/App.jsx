@@ -6,6 +6,7 @@ import DataMappingTab from './components/DataMappingTab';
 import SummaryStrip from './components/SummaryStrip';
 import CurrentStepBadge from './components/CurrentStepBadge';
 import AttentionBadge, { attentionCardClass } from './components/AttentionBadge';
+import UploadPanel from './components/UploadPanel';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -309,7 +310,8 @@ function ImportTab() {
   const [importing, setImporting] = useState(null);
   const [result, setResult] = useState(null);
 
-  useEffect(() => {
+  // Also called after an upload, which can add a source or change a file's row count
+  const loadSources = () =>
     fetch('/api/import/sources')
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -324,6 +326,9 @@ function ImportTab() {
         setError(err.message);
         setLoading(false);
       });
+
+  useEffect(() => {
+    loadSources();
   }, []);
 
   async function runImport(source, file) {
@@ -358,13 +363,21 @@ function ImportTab() {
     );
   }
 
+  // Customers without sample data get their files in through the upload panel
   if (sources.length === 0) {
-    return <div className="placeholder"><p>No customer data waiting to be imported</p></div>;
+    return (
+      <div>
+        <h2>Import</h2>
+        <UploadPanel onUploaded={loadSources} />
+        <div className="placeholder"><p>No customer data waiting to be imported</p></div>
+      </div>
+    );
   }
 
   return (
     <div>
       <h2>Import</h2>
+      <UploadPanel onUploaded={loadSources} />
       <p style={{ color: '#6b7280', marginBottom: '20px' }}>
         {sources.length} source(s) with data waiting to be imported
       </p>
@@ -391,7 +404,10 @@ function ImportTab() {
                 </td>
               )}
               <td>{file.entity}</td>
-              <td><code>{file.filename}</code></td>
+              <td>
+                <code>{file.filename}</code>
+                {file.uploaded && <span className="uploaded-tag">uploaded</span>}
+              </td>
               <td>{file.rowCount} rows</td>
               <td>
                 {file.importable ? (

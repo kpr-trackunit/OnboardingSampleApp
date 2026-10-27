@@ -12,6 +12,7 @@ const store = require('../data/store');
 const { ENTITY_FILES } = require('../import/sources');
 const { getTargetFields } = require('../models/targetFields');
 const { mappingCompleteness, readFileRows } = require('../import/completeness');
+const { readSourceFile } = require('../import/sourceFiles');
 
 const router = express.Router();
 
@@ -80,7 +81,8 @@ router.get('/:customerId', (req, res) => {
   });
 });
 
-// One mapping with its entity's target fields (including unmapped ones)
+// One mapping with its entity's target fields (including unmapped ones), and the source
+// file it maps: its headers in file order, and whether CS uploaded it (slice 6). null without a file.
 router.get('/:customerId/:entity', (req, res) => {
   const customer = findCustomer(req, res);
   if (!customer) return;
@@ -95,7 +97,12 @@ router.get('/:customerId/:entity', (req, res) => {
     return res.status(404).json({ error: 'No mapping yet' });
   }
 
-  res.json({ mapping, fields: describeFields(entity, mapping) });
+  const file = readSourceFile(customer.id, entity, { getSourceCustomerId: store.getSourceCustomerId });
+  res.json({
+    mapping,
+    fields: describeFields(entity, mapping),
+    file: file && { filename: file.filename, uploaded: file.uploaded, headers: file.header, rowCount: file.rows.length }
+  });
 });
 
 module.exports = router;

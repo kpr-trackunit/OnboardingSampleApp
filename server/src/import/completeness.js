@@ -14,10 +14,8 @@
  * to CS but don't stop completion.
  */
 
-const fs = require('fs');
-const path = require('path');
-const { DEFAULT_DATA_DIR, listSources } = require('./sources');
-const { parseCsv } = require('./csv');
+const { DEFAULT_DATA_DIR } = require('./sources');
+const { readSourceFile, detectFileDateFormat } = require('./sourceFiles');
 const { rejoinOverflow } = require('./overflow');
 const { detectDateFormat } = require('./normalizers');
 
@@ -79,12 +77,17 @@ function dateFormatStatus(mapping, fileRows, targetFields) {
       : { dateFormat: { format: null, status }, reason: reason('date_format_unset', true, 'Date format not set') };
   }
 
+  // No date column mapped yet (e.g. a new upload's empty mapping): detect from the file's date-like columns
   const values = fileRows.flatMap(row => dateColumns.map(column => row[column] ?? ''));
-  if (values.every(value => String(value).trim() === '')) {
+  const fileDetection = dateColumns.length > 0 ? null : detectFileDateFormat(fileRows);
+  const noDates = fileDetection
+    ? fileDetection.columns.length === 0
+    : values.every(value => String(value).trim() === '');
+  if (noDates) {
     return { dateFormat: { format: mapping.dateFormat || null, status: 'not_needed' }, reason: null };
   }
 
-  const detection = detectDateFormat(values);
+  const detection = fileDetection || detectDateFormat(values);
   if (detection.status === 'detected') {
     return { dateFormat: { format: detection.format, status: 'detected' }, reason: null };
   }
@@ -165,19 +168,19 @@ function mappingCompleteness(mapping, fileRows, targetFields) {
 
 /**
  * Reads a customer's source file for an entity as rows keyed by column name, rejoining
- * unquoted commas the same way import does. Rows that still don't fit the header are left out
- * (import rejects them). Returns null when the customer has no file for the entity.
+ * unquoted commas the same way import does. Reads the file CS uploaded when there is one,
+ * otherwise the sample-data file (see sourceFiles.js). Rows that still don't fit the header
+ * are left out (import rejects them). Returns null when the customer has no file for the entity.
  * @param {string} customerId
  * @param {import('../models').Mapping} mapping - Used to recover overflowing rows
  * @param {{ dataDir?: string, getSourceCustomerId: (sourceKey: string, label: string) => string }} options
  * @returns {Object<string, string>[]|null}
  */
 function readFileRows(customerId, mapping, { dataDir = DEFAULT_DATA_DIR, getSourceCustomerId }) {
-  const source = listSources(dataDir).find(s => getSourceCustomerId(s.sourceKey, s.label) === customerId);
-  const file = source?.files.find(f => f.entity === mapping.entity);
+  const file = readSourceFile(customerId, mapping.entity, { dataDir, getSourceCustomerId });
   if (!file) return null;
 
-  const { header, rows } = parseCsv(fs.readFileSync(path.join(dataDir, source.folder, file.filename), 'utf8'));
+  const { header, rows } = file;
   return rows
     .map(({ fields }) => rejoinOverflow(header, fields, mapping).fields)
     .filter(fields => fields.length === header.length)

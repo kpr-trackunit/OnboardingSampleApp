@@ -5,12 +5,18 @@
 
 const store = require('../data/store');
 const { getSource } = require('../import/sources');
+const { customerIdFromUploadKey } = require('../import/uploads');
 
 const TENANT_NOT_ACTIVE_MESSAGE = 'Tenant not active yet. Finish Tenant Setup first';
 
 // The customer an import source belongs to, or null for an unknown source.
 // Uses the store's sourceKey -> customer link (import slice 8 will own this later).
+// An upload-only source (`upload:<customerId>`, data-mapping slice 6) names its customer.
 function sourceCustomerId(sourceKey) {
+  const uploadCustomerId = customerIdFromUploadKey(sourceKey);
+  if (uploadCustomerId !== null) {
+    return store.getCustomerById(uploadCustomerId) ? uploadCustomerId : null;
+  }
   const source = getSource(sourceKey);
   return source ? store.getSourceCustomerId(source.sourceKey, source.label) : null;
 }

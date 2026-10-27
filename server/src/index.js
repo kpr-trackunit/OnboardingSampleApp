@@ -112,6 +112,9 @@ app.get('/api/tenants/:customerId', (req, res) => {
   res.json(tenant);
 });
 
+// Upload a customer's CSV for one entity, held in memory (data-mapping slice 6, see routes/upload.js)
+app.use('/api/import', require('./routes/upload'));
+
 // List customer data files waiting to be imported. Always allowed; tenantActive
 // tells the Import tab whether the source's customer may import yet (tenant slice 7).
 app.get('/api/import/sources', (req, res) => {

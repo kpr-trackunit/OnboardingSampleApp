@@ -204,6 +204,59 @@ header p {
   font-weight: 500;
 }
 
+/* Upload a customer's files (data-mapping slice 6) */
+.upload-panel {
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.upload-panel h3 {
+  margin-bottom: 4px;
+}
+
+.upload-customer {
+  display: inline-block;
+  margin: 12px 0;
+}
+
+.upload-entities {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.upload-entity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+}
+
+.upload-entity span {
+  font-weight: 500;
+}
+
+.upload-status {
+  margin-top: 12px;
+  color: #059669;
+  font-size: 0.85rem;
+}
+
+.upload-status.error {
+  color: #dc2626;
+}
+
+.uploaded-tag {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #e0e7ff;
+  color: #3730a3;
+  font-size: 0.75rem;
+}
+
 /* Import is blocked until the source's tenant is active (tenant slice 7) */
 .tenant-notice {
   margin: 4px 0 0;

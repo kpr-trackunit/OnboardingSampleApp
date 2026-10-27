@@ -28,7 +28,8 @@ function DataMappingTab() {
     getJson('/api/customers')
       .then(data => {
         setCustomers(data);
-        if (data.length > 0) setCustomerId(data[0].id);
+        // Keep a customer already picked (StrictMode runs this effect twice, and the second load can land after a pick)
+        if (data.length > 0) setCustomerId(current => current || data[0].id);
       })
       .catch(err => setError(err.message));
   }, []);
@@ -45,7 +46,8 @@ function DataMappingTab() {
 
   useEffect(() => {
     setDetail(null);
-    if (!entry?.mapping) return;
+    // Wait for the picked customer's overview, so a stale one never asks for a mapping the new customer lacks
+    if (!entry?.mapping || overview?.customerId !== customerId) return;
     getJson(`/api/mappings/${customerId}/${entity}`)
       .then(setDetail)
       .catch(err => setError(err.message));
@@ -96,7 +98,7 @@ function DataMappingTab() {
         <div className="placeholder mapping-empty"><p>No mapping yet</p></div>
       )}
       {entry?.mapping && !detail && <p>Loading...</p>}
-      {detail && <MappingView mapping={detail.mapping} fields={detail.fields} />}
+      {detail && <MappingView mapping={detail.mapping} fields={detail.fields} file={detail.file} />}
     </div>
   );
 }

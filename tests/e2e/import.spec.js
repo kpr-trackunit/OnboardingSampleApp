@@ -39,7 +39,8 @@ test.describe('Import Tab', () => {
   test('should list the 3 customer data sources', async ({ page }) => {
     await openImportTab(page);
 
-    const sources = page.locator('.sources-table .source-label');
+    // Uploads made by other tests are listed as upload:<customerId> sources; leave them out
+    const sources = page.locator('.sources-table tr:not([data-source^="upload:"]) .source-label');
     await expect(sources).toHaveCount(3);
     await expect(sources).toHaveText(['ABC Accounting', 'XYZ Financial Services', 'Premier Bookkeeping']);
   });

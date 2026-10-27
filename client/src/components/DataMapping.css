@@ -138,3 +138,13 @@
   color: #991b1b;
   font-weight: 600;
 }
+
+/* The headers of the file being mapped (slice 6) */
+.file-headers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 0;
+  list-style: none;
+}
