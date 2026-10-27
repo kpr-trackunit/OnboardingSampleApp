@@ -24,22 +24,30 @@ router.get('/', (req, res) => {
   res.json(store.getTenantList());
 });
 
-// Change a tenant's status, e.g. { status: 'provisioning' }.
+// Change a tenant's status, e.g. { status: 'provisioning' } or { status: 'failed', reason: '...' }.
 // Only moves in TENANT_STATUS_TRANSITIONS (models) are allowed; others return 409.
+// Moving to failed needs a non-empty reason (400 otherwise).
 router.patch('/:customerId/status', (req, res) => {
-  const { status } = req.body || {};
+  const { status, reason } = req.body || {};
   if (!Object.hasOwn(TENANT_STATUS_TRANSITIONS, status)) {
     return res.status(400).json({
       error: `status must be one of: ${Object.keys(TENANT_STATUS_TRANSITIONS).join(', ')}`
     });
   }
 
-  const result = store.updateTenantStatus(req.params.customerId, status);
+  if (reason != null && typeof reason !== 'string') {
+    return res.status(400).json({ error: 'reason must be a string' });
+  }
+
+  const result = store.updateTenantStatus(req.params.customerId, status, reason);
   if (result.code === 'not_found') {
     return res.status(404).json({ error: result.error });
   }
   if (result.code === 'invalid_transition') {
     return res.status(409).json({ error: result.error });
+  }
+  if (result.code === 'reason_required') {
+    return res.status(400).json({ error: result.error });
   }
 
   const customer = store.getCustomerById(result.tenant.customerId);
