@@ -152,6 +152,11 @@ header p {
   color: white;
 }
 
+.step-status.failed {
+  background: #dc2626;
+  color: white;
+}
+
 .customer-card {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
