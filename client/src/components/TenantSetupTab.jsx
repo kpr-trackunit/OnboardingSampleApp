@@ -7,6 +7,7 @@ function TenantSetupTab() {
   const [error, setError] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [busyCustomerId, setBusyCustomerId] = useState(null);
+  const [saveError, setSaveError] = useState(null);
 
   // reason is only sent (and required) when marking a tenant failed.
   // Resolves true on success so the caller can close its reason form.
@@ -30,7 +31,6 @@ function TenantSetupTab() {
       setBusyCustomerId(null);
     }
   };
-  const [saveError, setSaveError] = useState(null);
 
   useEffect(() => {
     fetch('/api/tenants')
