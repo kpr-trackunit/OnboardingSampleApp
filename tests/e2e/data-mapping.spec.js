@@ -24,8 +24,8 @@ test.describe('Data Mapping Tab', () => {
 
     const view = page.locator('.mapping-view[data-entity="clients"]');
     await expect(view.locator('.column-mappings tr[data-field="name"]')).toContainText('name');
-    await expect(view.locator('.column-mappings tr[data-field="name"]')).toContainText('companyName');
-    await expect(view.locator('.column-mappings tr[data-field="status"]')).toContainText('clientStatus');
+    await expect(view.getByLabel('Source column for name')).toHaveValue('companyName');
+    await expect(view.getByLabel('Source column for status')).toHaveValue('clientStatus');
 
     const status = view.locator('.value-mapping[data-field="status"]');
     await expect(status.locator('.value-map tr').filter({ hasText: /^A/ })).toContainText('active');

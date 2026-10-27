@@ -15,11 +15,21 @@ module.exports = defineConfig({
   projects: [
     {
       name: 'chromium',
+      testIgnore: /mapping-edits\.spec\.js/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // Specs that edit the seeded mappings run after all the others, which expect the seeds
+    {
+      name: 'mapping-edits',
+      testMatch: /mapping-edits\.spec\.js/,
+      dependencies: ['chromium'],
       use: { ...devices['Desktop Chrome'] },
     },
   ],
   webServer: {
     command: 'npm start',
+    // Mounts the test-only setup routes the Import tests use (server/src/routes/testSupport.js)
+    env: { ENABLE_TEST_ROUTES: 'true' },
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,

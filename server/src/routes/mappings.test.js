@@ -1,4 +1,4 @@
-const { describe, it, before, after } = require('node:test');
+const { describe, it, before, after, afterEach } = require('node:test');
 const assert = require('node:assert');
 const express = require('express');
 const mappingsRouter = require('./mappings');
@@ -9,6 +9,10 @@ const { seedMappings } = require('../data/mappingSeeds');
 // The customer the XYZ seed is linked to (customers come from customers/*.md, so look it up)
 function xyzCustomerId() {
   return store.getSourceCustomerId('xyz-financial-services', 'XYZ Financial Services');
+}
+
+function abcCustomerId() {
+  return store.getSourceCustomerId('abc-accounting', 'ABC Accounting');
 }
 
 describe('Mapping routes', () => {
@@ -117,6 +121,93 @@ describe('Mapping routes', () => {
       const res = await fetch(`${baseUrl}/api/mappings/cust_001/clients`);
       assert.strictEqual(res.status, 404);
       assert.strictEqual((await res.json()).error, 'No mapping yet');
+    });
+
+    it("should list the source file's headers for the column dropdowns", async () => {
+      const res = await fetch(`${baseUrl}/api/mappings/${abcCustomerId()}/clients`);
+      const body = await res.json();
+
+      assert.strictEqual(res.status, 200);
+      assert.deepStrictEqual(body.headers, [
+        'Client ID', 'Client Name', 'Business Type', 'Status', 'Date Onboarded',
+        'Tax ID', 'Annual Revenue', 'Industry', 'Payment Terms', 'Primary Contact'
+      ]);
+    });
+  });
+
+  describe('PUT /api/mappings/:customerId/:entity', () => {
+    let original;
+
+    before(() => {
+      original = store.getMapping(abcCustomerId(), 'clients');
+    });
+
+    // Each test edits the shared store, so put the seeded ABC clients mapping back
+    afterEach(() => {
+      store.saveMapping(original);
+    });
+
+    function put(body, { customerId = abcCustomerId(), entity = 'clients' } = {}) {
+      return fetch(`${baseUrl}/api/mappings/${customerId}/${entity}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    }
+
+    it('should change only the columns sent, and save them', async () => {
+      const res = await put({ columns: { paymentTerms: 'Primary Contact' } });
+      const body = await res.json();
+
+      assert.strictEqual(res.status, 200);
+      assert.deepStrictEqual(body.mapping.columns, { ...original.columns, paymentTerms: 'Primary Contact' });
+      assert.deepStrictEqual(body.mapping.values, original.values);
+      assert.strictEqual(store.getMapping(abcCustomerId(), 'clients').columns.paymentTerms, 'Primary Contact');
+      assert.strictEqual(body.completeness.complete, true);
+      assert.ok(body.headers.includes('Primary Contact'));
+      assert.ok(body.fields.some(f => f.field === 'paymentTerms'));
+    });
+
+    it('should reject an unknown target field with 400 and change nothing', async () => {
+      const res = await put({ columns: { nickname: 'Client Name' } });
+
+      assert.strictEqual(res.status, 400);
+      assert.match((await res.json()).error, /Unknown target field 'nickname'/);
+      assert.deepStrictEqual(store.getMapping(abcCustomerId(), 'clients'), original);
+    });
+
+    it("should reject a column that isn't in the file's headers with 400", async () => {
+      const res = await put({ columns: { name: 'Company Name' } });
+
+      assert.strictEqual(res.status, 400);
+      assert.match((await res.json()).error, /'Company Name' is not a column in the clients file/);
+      assert.deepStrictEqual(store.getMapping(abcCustomerId(), 'clients'), original);
+    });
+
+    it('should make the mapping incomplete when a required field is unmapped', async () => {
+      const res = await put({ columns: { name: null } });
+      const body = await res.json();
+
+      assert.strictEqual(res.status, 200);
+      assert.ok(!('name' in body.mapping.columns));
+      assert.strictEqual(body.completeness.complete, false);
+      assert.ok(body.completeness.reasons.some(r => r.code === 'missing_required_column' && r.field === 'name'));
+    });
+
+    it('should reject keys that are not editable yet, an empty edit, and columns that are not an object', async () => {
+      const values = await put({ values: {} });
+      assert.strictEqual(values.status, 400);
+      assert.match((await values.json()).error, /Can't edit values/);
+
+      assert.strictEqual((await put({})).status, 400);
+      assert.strictEqual((await put({ columns: ['name'] })).status, 400);
+    });
+
+    it('should return 404 for an unknown customer, entity or mapping', async () => {
+      const edit = { columns: { name: null } };
+      assert.strictEqual((await put(edit, { customerId: 'cust_nope' })).status, 404);
+      assert.strictEqual((await put(edit, { entity: 'invoices' })).status, 404);
+      assert.strictEqual((await put(edit, { customerId: 'cust_001' })).status, 404);
     });
   });
 
