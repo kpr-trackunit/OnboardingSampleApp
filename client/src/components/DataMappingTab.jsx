@@ -12,8 +12,9 @@ async function getJson(url) {
 /**
  * Data Mapping tab: pick a customer and an entity, then see how that customer's
  * file is mapped onto the standard model.
- * The entity picker is where completeness badges go (slice 2); MappingView is
- * where the column and value editors go (slices 3 and 4).
+ * Each entity shows a Complete/Incomplete badge, with the reasons listed below
+ * the picker (slice 2). MappingView is where the column and value editors go
+ * (slices 3 and 4).
  */
 function DataMappingTab() {
   const [customers, setCustomers] = useState([]);
@@ -82,11 +83,13 @@ function DataMappingTab() {
               aria-pressed={e.entity === entity}
               onClick={() => setEntity(e.entity)}
             >
-              {e.entity}
+              {e.entity} <CompletenessBadge completeness={e.completeness} />
             </button>
           ))}
         </div>
       </div>
+
+      {overview && <CompletenessSummary entities={overview.entities} />}
 
       {!overview && <p>Loading...</p>}
       {overview && entry && !entry.mapping && (
@@ -94,6 +97,62 @@ function DataMappingTab() {
       )}
       {entry?.mapping && !detail && <p>Loading...</p>}
       {detail && <MappingView mapping={detail.mapping} fields={detail.fields} />}
+    </div>
+  );
+}
+
+function CompletenessBadge({ completeness }) {
+  const complete = completeness?.complete;
+  return (
+    <span className={`completeness-badge ${complete ? 'complete' : 'incomplete'}`}>
+      {complete ? 'Complete' : 'Incomplete'}
+    </span>
+  );
+}
+
+// Detected format, Ambiguous, or why there is none
+function DateFormatStatus({ dateFormat }) {
+  if (!dateFormat) return null;
+  const { format, status } = dateFormat;
+  let text;
+  if (status === 'ambiguous') text = <span className="completeness-badge ambiguous">Ambiguous</span>;
+  else if (status === 'not_needed') text = <span className="muted">not needed (no dates in the file)</span>;
+  else if (format) text = <><code>{format}</code> <span className="muted">({status})</span></>;
+  else text = <span className="muted">not set</span>;
+  return <p className="date-status">Date format: {text}</p>;
+}
+
+/**
+ * One card per entity: badge, date format and the reasons it isn't complete.
+ * Strict reasons are highlighted; reasons that don't block (a default will be used) are muted.
+ */
+function CompletenessSummary({ entities }) {
+  return (
+    <div className="completeness-summary">
+      {entities.map(({ entity, completeness }) => (
+        <div
+          key={entity}
+          className="entity-status"
+          data-entity={entity}
+          data-complete={String(Boolean(completeness?.complete))}
+        >
+          <h4>{entity} <CompletenessBadge completeness={completeness} /></h4>
+          <DateFormatStatus dateFormat={completeness?.dateFormat} />
+          {completeness?.reasons.length > 0 && (
+            <ul className="completeness-reasons">
+              {completeness.reasons.map((reason, i) => (
+                <li
+                  key={i}
+                  className={`reason ${reason.strict ? 'strict' : ''} ${reason.blocking ? 'blocking' : 'warning'}`}
+                  data-code={reason.code}
+                >
+                  {reason.strict && <span className="field-tag strict">strict</span>} {reason.message}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
