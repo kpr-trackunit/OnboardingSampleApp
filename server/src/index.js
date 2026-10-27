@@ -9,6 +9,8 @@ const { ImportError, listImportSources, importEntity, getImported } = require('.
 const app = express();
 const PORT = process.env.PORT || 3001;
 const ISSUE_STATUSES = ['open', 'in-progress', 'resolved'];
+// Customer Info fields CS can edit on the Customer Info tab
+const INFO_FIELDS = ['industry', 'region', 'contactEmail'];
 
 // Middleware
 app.use(cors());
@@ -34,10 +36,25 @@ app.post('/api/customers', (req, res) => {
   res.status(201).json(store.addCustomer(createCustomer({ name })));
 });
 
-// Update a customer's name and/or config
+// Update a customer's name, config, issues and/or info fields
 app.put('/api/customers/:id', (req, res) => {
-  const { name, config, issues } = req.body || {};
+  const body = req.body || {};
+  const { name, config, issues } = body;
   const updates = {};
+  // Info fields: strings, trimmed. Errors are keyed by field so the Customer
+  // Info row can show each one next to its input.
+  const errors = {};
+  for (const field of INFO_FIELDS) {
+    if (body[field] === undefined) continue;
+    if (typeof body[field] !== 'string') {
+      errors[field] = 'Must be text';
+      continue;
+    }
+    updates[field] = body[field].trim();
+  }
+  if (Object.keys(errors).length > 0) {
+    return res.status(400).json({ error: 'Some fields are invalid', errors });
+  }
   if (name !== undefined) {
     if (typeof name !== 'string' || !name.trim()) {
       return res.status(400).json({ error: 'Customer name is required' });
@@ -139,8 +156,12 @@ app.get('/api/import/:sourceKey/:entity', (req, res) => {
   }
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Onboarding API server running at http://localhost:${PORT}`);
-  console.log(`   Health check: http://localhost:${PORT}/api/health`);
-});
+// Start server (only when run directly, so tests can require the app)
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`🚀 Onboarding API server running at http://localhost:${PORT}`);
+    console.log(`   Health check: http://localhost:${PORT}/api/health`);
+  });
+}
+
+module.exports = app;
