@@ -54,6 +54,29 @@ describe('Mapping routes', () => {
       assert.ok(body.entities.every(e => e.mapping === null));
     });
 
+    it('should give each entity its completeness, checked against the source file', async () => {
+      const res = await fetch(`${baseUrl}/api/mappings/${xyzCustomerId()}`);
+      const body = await res.json();
+
+      const clients = body.entities.find(e => e.entity === 'clients');
+      assert.deepStrictEqual(clients.completeness, {
+        complete: true,
+        reasons: [],
+        dateFormat: { format: 'YYYY-MM-DD', status: 'detected' }
+      });
+
+      // Entities not seeded yet read "Incomplete: no mapping yet"
+      body.entities.filter(e => !e.mapping).forEach(({ completeness }) => {
+        assert.strictEqual(completeness.complete, false);
+        assert.deepStrictEqual(completeness.reasons.map(r => [r.code, r.message]), [['no_mapping', 'No mapping yet']]);
+      });
+    });
+
+    it('should mark every entity incomplete for a customer with no mappings', async () => {
+      const body = await (await fetch(`${baseUrl}/api/mappings/cust_001`)).json();
+      assert.ok(body.entities.every(e => e.completeness.complete === false));
+    });
+
     it('should return 404 for an unknown customer', async () => {
       const res = await fetch(`${baseUrl}/api/mappings/cust_nope`);
       assert.strictEqual(res.status, 404);

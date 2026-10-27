@@ -1,0 +1,4 @@
+Client ID,Client Name,Business Type,Status,Date Onboarded,Tax ID,Annual Revenue,Industry,Payment Terms
+D001,Harbour Freight Ltd,Corporation,Active,01/02/2023,11-1111111,120000.00,Logistics,Net 30
+D002,Maple Studio,LLC,Pending,05/06/2023,22-2222222,80000.00,Design,Net 15
+D003,Northwind Partners,Partnership,Inactive,11/12/2023,33-3333333,450000.00,Consulting,Net 30
