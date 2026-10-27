@@ -39,6 +39,41 @@
  */
 
 /**
+ * @typedef {Object} Client
+ * @property {string} id - Unique client identifier
+ * @property {string} customerId - Customer whose data this came from
+ * @property {string} sourceId - Client ID in the customer's file
+ * @property {string} name - Client/company name
+ * @property {string} entityType - 'company' | 'llc_llp' | 'partnership' | 'sole_trader' | 'non_profit'
+ * @property {string} entityTypeSource - Original entity type value
+ * @property {string} status - 'active' | 'inactive' | 'pending'
+ * @property {string} statusSource - Original status value
+ * @property {string} startDate - ISO date (YYYY-MM-DD)
+ * @property {string} taxId - Tax reference
+ * @property {number|null} annualRevenue - Revenue as a number
+ * @property {string} industry - Industry or sector
+ * @property {string} paymentTerms - Payment terms as written by the customer
+ */
+
+/**
+ * @typedef {Object} ValueMap
+ * @property {Object<string, string>} map - Source value → standard value
+ * @property {string|null} default - Standard value used when a source value isn't mapped
+ */
+
+/**
+ * @typedef {Object} Mapping
+ * @property {string} id - Unique mapping identifier
+ * @property {string} customerId - Associated customer ID
+ * @property {string} entity - 'clients' | 'contacts' | 'accounts' | 'transactions'
+ * @property {Object<string, string|null>} columns - Target field → source column
+ * @property {Object<string, ValueMap>} values - Picklist target field → value map
+ * @property {string|null} dateFormat - 'MM/DD/YYYY' | 'YYYY-MM-DD' | 'DD-MM-YYYY' | null
+ * @property {string} dateFormatDetected - 'detected' | 'ambiguous' | 'confirmed'
+ * @property {string} updatedAt - ISO timestamp
+ */
+
+/**
  * Creates a new Customer object
  * @param {Partial<Customer>} data 
  * @returns {Customer}
@@ -95,9 +130,52 @@ function calculateProgress(steps) {
   return Math.round((completed / steps.length) * 100);
 }
 
+/**
+ * Creates a new Client object
+ * @param {Partial<Client>} data
+ * @returns {Client}
+ */
+function createClient(data) {
+  return {
+    id: data.id || `client_${data.customerId}_${data.sourceId}`,
+    customerId: data.customerId || '',
+    sourceId: data.sourceId || '',
+    name: data.name || '',
+    entityType: data.entityType || null,
+    entityTypeSource: data.entityTypeSource || '',
+    status: data.status || null,
+    statusSource: data.statusSource || '',
+    startDate: data.startDate || null,
+    taxId: data.taxId || '',
+    annualRevenue: data.annualRevenue ?? null,
+    industry: data.industry || '',
+    paymentTerms: data.paymentTerms || ''
+  };
+}
+
+/**
+ * Creates a new Mapping object
+ * @param {Partial<Mapping>} data
+ * @returns {Mapping}
+ */
+function createMapping(data) {
+  return {
+    id: data.id || `mapping_${data.customerId}_${data.entity}`,
+    customerId: data.customerId || '',
+    entity: data.entity || '',
+    columns: data.columns || {},
+    values: data.values || {},
+    dateFormat: data.dateFormat || null,
+    dateFormatDetected: data.dateFormatDetected || 'detected',
+    updatedAt: data.updatedAt || new Date().toISOString()
+  };
+}
+
 module.exports = {
   createCustomer,
   createTenant,
   createDefaultOnboardingSteps,
-  calculateProgress
+  calculateProgress,
+  createClient,
+  createMapping
 };

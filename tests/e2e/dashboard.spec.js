@@ -26,8 +26,9 @@ test.describe('Onboarding Dashboard', () => {
     await page.goto('/');
 
     // Wait for data to load and verify example customer is shown
-    await expect(page.locator('.customer-card')).toBeVisible();
-    await expect(page.locator('.customer-card h3')).toContainText('Acme 2 Corporation');
+    const acme = page.locator('.customer-card').filter({ hasText: 'Acme' });
+    await expect(acme).toBeVisible();
+    await expect(acme.locator('h3')).toContainText('Acme 2 Corporation');
   });
 
   test('should switch between tabs', async ({ page }) => {
