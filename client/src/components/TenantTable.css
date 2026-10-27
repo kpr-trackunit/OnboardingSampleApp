@@ -44,3 +44,8 @@
   background: #fee2e2;
   color: #b91c1c;
 }
+
+.tenant-actions button {
+  padding: 4px 12px;
+  margin-right: 8px;
+}

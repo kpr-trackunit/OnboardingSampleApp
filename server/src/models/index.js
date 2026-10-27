@@ -95,9 +95,45 @@ function calculateProgress(steps) {
   return Math.round((completed / steps.length) * 100);
 }
 
+/**
+ * Allowed tenant status transitions: current status -> statuses it may move to.
+ * pending -> provisioning (Start), provisioning -> active (Mark active),
+ * provisioning -> failed (Mark failed), failed -> provisioning (Retry).
+ * @type {Object<string, string[]>}
+ */
+const TENANT_STATUS_TRANSITIONS = {
+  pending: ['provisioning'],
+  provisioning: ['active', 'failed'],
+  active: [],
+  failed: ['provisioning']
+};
+
+/**
+ * Onboarding step 3 (Tenant Setup) mirrors the tenant status
+ * @type {Object<string, string>}
+ */
+const TENANT_STATUS_TO_STEP_STATUS = {
+  pending: 'pending',
+  provisioning: 'in_progress',
+  active: 'completed',
+  failed: 'failed'
+};
+
+/**
+ * @param {string} from - Current tenant status
+ * @param {string} to - Requested tenant status
+ * @returns {boolean}
+ */
+function canTransitionTenant(from, to) {
+  return (TENANT_STATUS_TRANSITIONS[from] || []).includes(to);
+}
+
 module.exports = {
   createCustomer,
   createTenant,
   createDefaultOnboardingSteps,
-  calculateProgress
+  calculateProgress,
+  TENANT_STATUS_TRANSITIONS,
+  TENANT_STATUS_TO_STEP_STATUS,
+  canTransitionTenant
 };

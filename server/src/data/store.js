@@ -3,7 +3,14 @@
  * Simple storage for the training exercise - no database needed
  */
 
-const { createCustomer, createTenant, createDefaultOnboardingSteps } = require('../models');
+const {
+  createCustomer,
+  createTenant,
+  createDefaultOnboardingSteps,
+  calculateProgress,
+  canTransitionTenant,
+  TENANT_STATUS_TO_STEP_STATUS
+} = require('../models');
 const customerFiles = require('./customerFiles');
 
 // In-memory storage
@@ -99,6 +106,43 @@ function addTenant(tenant) {
   return tenant;
 }
 
+const TENANT_SETUP_STEP_ID = 'step_3';
+
+/**
+ * Moves a customer's tenant to a new status, enforcing the transition table,
+ * and mirrors it onto onboarding step 3 (recalculating progressPercent).
+ * @returns {{ tenant: object } | { error: string, code: 'not_found' | 'invalid_transition' }}
+ */
+function updateTenantStatus(customerId, status) {
+  const index = store.tenants.findIndex(t => t.customerId === customerId);
+  if (index === -1) {
+    return { error: 'Tenant not found', code: 'not_found' };
+  }
+
+  const current = store.tenants[index];
+  if (!canTransitionTenant(current.status, status)) {
+    return {
+      error: `Cannot change tenant status from ${current.status} to ${status}`,
+      code: 'invalid_transition'
+    };
+  }
+
+  const tenant = { ...current, status };
+  store.tenants[index] = tenant;
+
+  const state = getOnboardingState(customerId);
+  if (state) {
+    const steps = state.steps.map(step =>
+      step.id === TENANT_SETUP_STEP_ID
+        ? { ...step, status: TENANT_STATUS_TO_STEP_STATUS[status] }
+        : step
+    );
+    updateOnboardingState(customerId, { steps, progressPercent: calculateProgress(steps) });
+  }
+
+  return { tenant };
+}
+
 function getOnboardingState(customerId) {
   return store.onboardingStates.find(s => s.customerId === customerId);
 }
@@ -130,6 +174,7 @@ module.exports = {
   getTenantList,
   getTenantByCustomerId,
   addTenant,
+  updateTenantStatus,
   getOnboardingState,
   getAllOnboardingStates,
   addOnboardingState,

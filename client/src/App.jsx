@@ -23,8 +23,7 @@ function App() {
       .then(setCustomers)
       .catch(err => console.error('Failed to fetch customers:', err));
 
-  useEffect(() => {
-    loadCustomers();
+  const loadOnboarding = () =>
     fetch('/api/onboarding')
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -43,7 +42,16 @@ function App() {
         setOnboardingData([]);
         setLoading(false);
       });
+
+  useEffect(() => {
+    loadCustomers();
   }, []);
+
+  // Re-fetch whenever the Dashboard is shown, so changes made on other tabs
+  // (e.g. a tenant marked active) are reflected
+  useEffect(() => {
+    if (activeTab === 'dashboard') loadOnboarding();
+  }, [activeTab]);
 
   return (
     <div className="app">
