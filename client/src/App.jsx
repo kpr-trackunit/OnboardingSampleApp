@@ -3,6 +3,7 @@ import { saveCustomer } from './api';
 import CustomerDetails from './components/CustomerDetails';
 import TenantSetupTab from './components/TenantSetupTab';
 import CurrentStepBadge from './components/CurrentStepBadge';
+import StepFilter, { ALL, matchesStepFilter } from './components/StepFilter';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -96,6 +97,7 @@ function App() {
 }
 
 function DashboardTab({ data, loading, error }) {
+  const [stepFilter, setStepFilter] = useState(ALL);
   if (loading) {
     return <div className="placeholder"><p>Loading...</p></div>;
   }
@@ -120,7 +122,8 @@ function DashboardTab({ data, loading, error }) {
         {data.length} customer(s) awaiting onboarding
       </p>
 
-      {data.map(item => (
+      <StepFilter rows={data} value={stepFilter} onChange={setStepFilter} />
+      {data.filter(item => matchesStepFilter(item, stepFilter)).map(item => (
         <div key={item.customerId} className="customer-card">
           <h3>{item.customerName}</h3>
           <CurrentStepBadge step={item.currentStep} />
