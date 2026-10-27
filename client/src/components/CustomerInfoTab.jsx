@@ -9,6 +9,7 @@ function CustomerInfoTab() {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [incompleteOnly, setIncompleteOnly] = useState(false);
 
   useEffect(() => {
     fetch('/api/customers')
@@ -43,6 +44,9 @@ function CustomerInfoTab() {
     );
   }
 
+  // The count stays whole-list; the toggle only narrows the rows
+  const shown = incompleteOnly ? customers.filter(c => c.missingInfo.length > 0) : customers;
+
   return (
     <div>
       <h2>Customer Info</h2>
@@ -50,9 +54,19 @@ function CustomerInfoTab() {
         Industry, region and contact email for each customer
       </p>
       {customers.length > 0 && <CompletenessCount customers={customers} />}
+      {customers.length > 0 && (
+        <label style={{ display: 'block', margin: '8px 0 12px' }}>
+          <input
+            type="checkbox"
+            checked={incompleteOnly}
+            onChange={e => setIncompleteOnly(e.target.checked)}
+          />{' '}
+          Show incomplete only
+        </label>
+      )}
       {customers.length === 0
         ? <div className="placeholder"><p>No customers yet</p></div>
-        : <CustomerInfoTable customers={customers} />}
+        : <CustomerInfoTable customers={shown} />}
     </div>
   );
 }
