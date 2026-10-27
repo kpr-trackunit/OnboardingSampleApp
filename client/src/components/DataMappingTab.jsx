@@ -9,12 +9,24 @@ async function getJson(url) {
   return body;
 }
 
+async function putJson(url, data) {
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  return body;
+}
+
 /**
  * Data Mapping tab: pick a customer and an entity, then see how that customer's
  * file is mapped onto the standard model.
  * Each entity shows a Complete/Incomplete badge, with the reasons listed below
- * the picker (slice 2). MappingView is where the column and value editors go
- * (slices 3 and 4).
+ * the picker (slice 2). Column edits save as soon as a dropdown changes (slice 3),
+ * and the entity's badge and reasons update from the save's response.
+ * Value editors come in slice 4.
  */
 function DataMappingTab() {
   const [customers, setCustomers] = useState([]);
@@ -23,6 +35,8 @@ function DataMappingTab() {
   const [entity, setEntity] = useState('clients');
   const [detail, setDetail] = useState(null); // GET /api/mappings/:customerId/:entity
   const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(null); // the field whose column is being saved
+  const [saveError, setSaveError] = useState(null);
 
   useEffect(() => {
     getJson('/api/customers')
@@ -42,14 +56,37 @@ function DataMappingTab() {
   }, [customerId]);
 
   const entry = overview?.entities.find(e => e.entity === entity);
+  const hasMapping = Boolean(entry?.mapping);
 
+  // Keyed on whether there is a mapping, not the mapping itself, so a save doesn't refetch
   useEffect(() => {
     setDetail(null);
-    if (!entry?.mapping) return;
+    setSaveError(null);
+    if (!hasMapping) return;
     getJson(`/api/mappings/${customerId}/${entity}`)
       .then(setDetail)
       .catch(err => setError(err.message));
-  }, [customerId, entity, entry?.mapping]);
+  }, [customerId, entity, hasMapping]);
+
+  // Saves one column edit (null unmaps the field), then updates the editor and the badge
+  async function changeColumn(field, column) {
+    setSaving(field);
+    setSaveError(null);
+    try {
+      const saved = await putJson(`/api/mappings/${customerId}/${entity}`, { columns: { [field]: column } });
+      setDetail({ mapping: saved.mapping, fields: saved.fields, headers: saved.headers });
+      setOverview(current => current && {
+        ...current,
+        entities: current.entities.map(e => e.entity === saved.mapping.entity
+          ? { ...e, mapping: saved.mapping, completeness: saved.completeness }
+          : e)
+      });
+    } catch (err) {
+      setSaveError(`Couldn't save ${field}: ${err.message}`);
+    } finally {
+      setSaving(null);
+    }
+  }
 
   if (error) {
     return (
@@ -96,7 +133,16 @@ function DataMappingTab() {
         <div className="placeholder mapping-empty"><p>No mapping yet</p></div>
       )}
       {entry?.mapping && !detail && <p>Loading...</p>}
-      {detail && <MappingView mapping={detail.mapping} fields={detail.fields} />}
+      {saveError && <p className="save-error" role="alert">{saveError}</p>}
+      {detail && (
+        <MappingView
+          mapping={detail.mapping}
+          fields={detail.fields}
+          headers={detail.headers || []}
+          onColumnChange={changeColumn}
+          saving={saving}
+        />
+      )}
     </div>
   );
 }

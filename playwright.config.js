@@ -15,6 +15,14 @@ module.exports = defineConfig({
   projects: [
     {
       name: 'chromium',
+      testIgnore: /mapping-edits\.spec\.js/,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // Specs that edit the seeded mappings run after all the others, which expect the seeds
+    {
+      name: 'mapping-edits',
+      testMatch: /mapping-edits\.spec\.js/,
+      dependencies: ['chromium'],
       use: { ...devices['Desktop Chrome'] },
     },
   ],

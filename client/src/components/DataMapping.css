@@ -11,6 +11,19 @@
   min-width: 240px;
 }
 
+/* Column editor (slice 3): one header dropdown per target field, saved on change */
+.column-mappings .column-select {
+  padding: 4px 8px;
+  font-family: monospace;
+  font-size: 0.85rem;
+  min-width: 180px;
+}
+
+.save-error {
+  color: #dc2626;
+  margin-bottom: 12px;
+}
+
 .entity-picker {
   display: flex;
   gap: 8px;
