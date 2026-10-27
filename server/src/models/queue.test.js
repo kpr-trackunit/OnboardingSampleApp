@@ -1,6 +1,6 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
-const { buildQueue } = require('./queue');
+const { buildQueue, openIssueCount } = require('./queue');
 const { createDefaultOnboardingSteps } = require('./index');
 
 const acme = { id: 'cust_001', name: 'Acme', industry: 'Manufacturing', region: 'EMEA' };
@@ -52,5 +52,33 @@ describe('buildQueue', () => {
 
   it('should return an empty queue when there are no customers', () => {
     assert.deepStrictEqual(buildQueue([], [{ customerId: 'cust_001', steps: [] }]), []);
+  });
+});
+
+describe('openIssueCount', () => {
+  it('should count open and in-progress issues but not resolved ones', () => {
+    const issues = [
+      { status: 'open', title: 'A' },
+      { status: 'in-progress', title: 'B' },
+      { status: 'resolved', title: 'C' },
+      { status: 'open', title: 'D' }
+    ];
+
+    assert.strictEqual(openIssueCount(issues), 3);
+  });
+
+  it('should return 0 when every issue is resolved', () => {
+    assert.strictEqual(openIssueCount([{ status: 'resolved', title: 'A' }]), 0);
+  });
+
+  it('should return 0 for a missing or empty issue list', () => {
+    assert.strictEqual(openIssueCount(undefined), 0);
+    assert.strictEqual(openIssueCount([]), 0);
+  });
+
+  it("should add the count to each queue row", () => {
+    const [row] = buildQueue([{ ...acme, issues: [{ status: 'open', title: 'A' }] }], []);
+
+    assert.strictEqual(row.openIssueCount, 1);
   });
 });

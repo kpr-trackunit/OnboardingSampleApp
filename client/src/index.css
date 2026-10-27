@@ -204,6 +204,13 @@ header p {
   font-weight: 500;
 }
 
+/* Import is blocked until the source's tenant is active (tenant slice 7) */
+.tenant-notice {
+  margin: 4px 0 0;
+  color: #b45309;
+  font-size: 0.8rem;
+}
+
 .button {
   padding: 6px 14px;
   border: none;

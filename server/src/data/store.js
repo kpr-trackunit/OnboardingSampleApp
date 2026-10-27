@@ -125,6 +125,11 @@ function getTenantByCustomerId(customerId) {
   return store.tenants.find(t => t.customerId === customerId);
 }
 
+// Import is gated on this (tenant slice 7). A customer without a tenant record is not active.
+function isTenantActive(customerId) {
+  return getTenantByCustomerId(customerId)?.status === 'active';
+}
+
 // Adds a tenant. A tenant without a region gets its customer's region (data residency prefill)
 function addTenant(tenant) {
   const customer = getCustomerById(tenant.customerId);
@@ -273,6 +278,7 @@ module.exports = {
   getTenants,
   getTenantList,
   getTenantByCustomerId,
+  isTenantActive,
   addTenant,
   updateTenantStatus,
   updateTenant,
