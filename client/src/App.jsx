@@ -3,6 +3,7 @@ import { saveCustomer } from './api';
 import CustomerDetails from './components/CustomerDetails';
 import TenantSetupTab from './components/TenantSetupTab';
 import DataMappingTab from './components/DataMappingTab';
+import SummaryStrip from './components/SummaryStrip';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -117,6 +118,7 @@ function DashboardTab({ data, loading, error }) {
       <p style={{ color: '#6b7280', marginBottom: '20px' }}>
         {data.length} customer(s) awaiting onboarding
       </p>
+      <SummaryStrip />
 
       {data.map(item => (
         <div key={item.customerId} className="customer-card">
@@ -124,6 +126,9 @@ function DashboardTab({ data, loading, error }) {
           <div className="customer-meta">
             <span>📍 {item.customerRegion}</span>
             <span>🏭 {item.customerIndustry}</span>
+            {item.openIssueCount > 0 && (
+              <span className="open-issues">{item.openIssueCount} open issue{item.openIssueCount === 1 ? '' : 's'}</span>
+            )}
           </div>
 
           <div className="progress-section">
@@ -371,21 +376,33 @@ function ImportTab() {
         <tbody>
           {sources.map(source => source.files.map((file, index) => (
             <tr key={`${source.sourceKey}-${file.entity}`} data-source={source.sourceKey}>
-              {index === 0 && <td rowSpan={source.files.length} className="source-label">{source.label}</td>}
+              {index === 0 && (
+                <td rowSpan={source.files.length}>
+                  <span className="source-label">{source.label}</span>
+                  {!source.tenantActive && (
+                    <p className="tenant-notice" role="status">Tenant not active yet. Finish Tenant Setup first</p>
+                  )}
+                </td>
+              )}
               <td>{file.entity}</td>
               <td><code>{file.filename}</code></td>
               <td>{file.rowCount} rows</td>
               <td>
-                {file.importable ? (
+                {file.mappingComplete === false ? (
+                  <>
+                    <button className="button" disabled>{`Import ${file.entity}`}</button>
+                    <MappingNotice reasons={file.mappingReasons} />
+                  </>
+                ) : file.importable ? (
                   <button
                     className="button"
-                    disabled={importing !== null}
+                    disabled={importing !== null || !source.tenantActive}
                     onClick={() => runImport(source, file)}
                   >
                     {importing === `${source.sourceKey}-${file.entity}` ? 'Importing...' : `Import ${file.entity}`}
                   </button>
                 ) : (
-                  <span className="muted">No mapping yet</span>
+                  <span className="muted">Import not available yet</span>
                 )}
               </td>
             </tr>
@@ -394,6 +411,20 @@ function ImportTab() {
       </table>
 
       {result && <ImportResult {...result} />}
+    </div>
+  );
+}
+
+// Why an entity can't be imported yet: its mapping isn't complete (data-mapping slice 5)
+function MappingNotice({ reasons = [] }) {
+  return (
+    <div className="mapping-notice" role="status">
+      <p className="mapping-notice-title">Mapping incomplete</p>
+      {reasons.length > 0 && (
+        <ul className="mapping-notice-reasons">
+          {reasons.map((reason, i) => <li key={i}>{reason.message}</li>)}
+        </ul>
+      )}
     </div>
   );
 }

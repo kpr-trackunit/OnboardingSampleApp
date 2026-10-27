@@ -11,7 +11,7 @@ const express = require('express');
 const store = require('../data/store');
 const { ENTITY_FILES } = require('../import/sources');
 const { getTargetFields } = require('../models/targetFields');
-const { mappingCompleteness, readFileRows } = require('../import/completeness');
+const { entityCompleteness } = require('../import/completeness');
 
 const router = express.Router();
 
@@ -48,20 +48,6 @@ function findCustomer(req, res) {
     return null;
   }
   return customer;
-}
-
-/**
- * A customer's mapping for one entity, checked against that customer's source file
- * @param {string} customerId
- * @param {string} entity
- * @returns {import('../import/completeness').Completeness}
- */
-function entityCompleteness(customerId, entity) {
-  const mapping = store.getMapping(customerId, entity) || null;
-  const fileRows = mapping
-    ? readFileRows(customerId, mapping, { getSourceCustomerId: store.getSourceCustomerId })
-    : null;
-  return mappingCompleteness(mapping, fileRows, getTargetFields(entity));
 }
 
 // Every entity for a customer, each with its mapping (or null, "No mapping yet") and completeness
@@ -101,4 +87,3 @@ router.get('/:customerId/:entity', (req, res) => {
 module.exports = router;
 module.exports.ENTITIES = ENTITIES;
 module.exports.describeFields = describeFields;
-module.exports.entityCompleteness = entityCompleteness;

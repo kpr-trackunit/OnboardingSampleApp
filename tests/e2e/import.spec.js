@@ -1,10 +1,43 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 
+const ABC = 'abc-accounting';
+const TENANT_NOTICE = 'Tenant not active yet. Finish Tenant Setup first';
+
+// The customer behind an import source, as the API links them
+async function sourceCustomerId(request, sourceKey) {
+  const res = await request.get('/api/import/sources');
+  expect(res.ok()).toBeTruthy();
+  const source = (await res.json()).find(s => s.sourceKey === sourceKey);
+  expect(source, `source ${sourceKey}`).toBeTruthy();
+  return source.customerId;
+}
+
+// Give the customer a fresh pending tenant (test-only route, see server/src/routes/testSupport.js)
+async function resetTenantToPending(request, customerId) {
+  const res = await request.post(`/api/test/tenants/${customerId}/reset`);
+  expect(res.ok(), await res.text()).toBeTruthy();
+}
+
+// pending -> provisioning -> active through the real status route
+async function activateTenant(request, customerId) {
+  for (const status of ['provisioning', 'active']) {
+    const res = await request.patch(`/api/tenants/${customerId}/status`, { data: { status } });
+    expect(res.ok(), await res.text()).toBeTruthy();
+  }
+}
+
+async function openImportTab(page) {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Import', exact: true }).click();
+}
+
 test.describe('Import Tab', () => {
+  // The tests below change the ABC tenant on the shared server, so run them in order
+  test.describe.configure({ mode: 'serial' });
+
   test('should list the 3 customer data sources', async ({ page }) => {
-    await page.goto('/');
-    await page.getByRole('button', { name: 'Import', exact: true }).click();
+    await openImportTab(page);
 
     const sources = page.locator('.sources-table .source-label');
     await expect(sources).toHaveCount(3);
@@ -12,20 +45,44 @@ test.describe('Import Tab', () => {
   });
 
   test('should show each file with its row count', async ({ page }) => {
-    await page.goto('/');
-    await page.getByRole('button', { name: 'Import', exact: true }).click();
+    await openImportTab(page);
 
-    const abcRows = page.locator('.sources-table tr[data-source="abc-accounting"]');
+    const abcRows = page.locator(`.sources-table tr[data-source="${ABC}"]`);
     await expect(abcRows).toHaveCount(4);
     await expect(abcRows.first()).toContainText('clients.csv');
     await expect(abcRows.first()).toContainText('10 rows');
   });
 
-  test('should import ABC clients and show the records', async ({ page }) => {
-    await page.goto('/');
-    await page.getByRole('button', { name: 'Import', exact: true }).click();
+  test('should block import while the tenant is pending, and enable it once active', async ({ page, request }) => {
+    const customerId = await sourceCustomerId(request, ABC);
+    await resetTenantToPending(request, customerId);
+    await openImportTab(page);
 
-    await page.locator('tr[data-source="abc-accounting"]').getByRole('button', { name: 'Import clients' }).click();
+    const abcRows = page.locator(`.sources-table tr[data-source="${ABC}"]`);
+    const importButton = abcRows.getByRole('button', { name: 'Import clients' });
+    await expect(abcRows.first().locator('.tenant-notice')).toHaveText(TENANT_NOTICE);
+    await expect(importButton).toBeDisabled();
+
+    // The server enforces it too
+    const blocked = await request.post(`/api/import/${ABC}/clients`);
+    expect(blocked.status()).toBe(409);
+    expect((await blocked.json()).error).toBe(TENANT_NOTICE);
+
+    await activateTenant(request, customerId);
+    await openImportTab(page);
+
+    await expect(abcRows.first().locator('.tenant-notice')).toHaveCount(0);
+    // The import itself is exercised by the next test (importing twice would duplicate records)
+    await expect(importButton).toBeEnabled();
+  });
+
+  test('should import ABC clients and show the records', async ({ page, request }) => {
+    const customerId = await sourceCustomerId(request, ABC);
+    await resetTenantToPending(request, customerId);
+    await activateTenant(request, customerId);
+    await openImportTab(page);
+
+    await page.locator(`tr[data-source="${ABC}"]`).getByRole('button', { name: 'Import clients' }).click();
 
     await expect(page.locator('.import-summary')).toContainText('Imported 10 clients');
     await expect(page.locator('.records-table tbody tr')).toHaveCount(10);
@@ -47,9 +104,13 @@ test.describe('Import Tab', () => {
     await expect(page.locator('.import-errors')).toHaveCount(0);
   });
 
-  test('should import XYZ and Premier clients with standard values and ISO dates', async ({ page }) => {
-    await page.goto('/');
-    await page.getByRole('button', { name: 'Import', exact: true }).click();
+  test('should import XYZ and Premier clients with standard values and ISO dates', async ({ page, request }) => {
+    for (const sourceKey of ['xyz-financial-services', 'premier-bookkeeping']) {
+      const customerId = await sourceCustomerId(request, sourceKey);
+      await resetTenantToPending(request, customerId);
+      await activateTenant(request, customerId);
+    }
+    await openImportTab(page);
 
     await page.locator('tr[data-source="xyz-financial-services"]').getByRole('button', { name: 'Import clients' }).click();
     await expect(page.locator('.import-summary')).toContainText('Imported 12 clients');
@@ -65,5 +126,56 @@ test.describe('Import Tab', () => {
     await expect(dockside).toContainText('2022-01-28');
     await expect(dockside).toContainText('inactive');
     await expect(dockside).toContainText('DORMANT');
+  });
+
+  test('should gate import per entity: clients importable, transactions blocked until its mapping is complete', async ({ page, request }) => {
+    // A sample customer whose clients mapping is complete and transactions mapping isn't
+    const res = await request.get('/api/import/sources');
+    expect(res.ok()).toBeTruthy();
+    const byEntity = source => Object.fromEntries(source.files.map(f => [f.entity, f]));
+    const source = (await res.json()).find(s =>
+      byEntity(s).clients?.mappingComplete && byEntity(s).transactions?.mappingComplete === false);
+    expect(source, 'a source with clients complete and transactions incomplete').toBeTruthy();
+    const transactions = byEntity(source).transactions;
+    expect(transactions.mappingReasons.length).toBeGreaterThan(0);
+
+    await resetTenantToPending(request, source.customerId);
+    await activateTenant(request, source.customerId);
+    await openImportTab(page);
+
+    const rows = page.locator(`.sources-table tr[data-source="${source.sourceKey}"]`);
+    const clientsRow = rows.filter({ hasText: 'clients.csv' });
+    const transactionsRow = rows.filter({ hasText: transactions.filename });
+
+    await expect(clientsRow.getByRole('button', { name: 'Import clients' })).toBeEnabled();
+    await expect(clientsRow.locator('.mapping-notice')).toHaveCount(0);
+
+    await expect(transactionsRow.getByRole('button', { name: 'Import transactions' })).toBeDisabled();
+    const notice = transactionsRow.locator('.mapping-notice');
+    await expect(notice.locator('.mapping-notice-title')).toHaveText('Mapping incomplete');
+    await expect(notice.locator('.mapping-notice-reasons li')).toHaveText(
+      transactions.mappingReasons.map(r => r.message));
+
+    // The server enforces it too, after the (now passing) tenant check
+    const blocked = await request.post(`/api/import/${source.sourceKey}/transactions`);
+    expect(blocked.status()).toBe(409);
+    const body = await blocked.json();
+    expect(body.error).toBe('Mapping incomplete');
+    expect(body.reasons).toEqual(transactions.mappingReasons);
+  });
+
+  test('should show the Data Mapping step in progress for a customer with some complete mappings', async ({ page, request }) => {
+    const sources = await (await request.get('/api/import/sources')).json();
+    const source = sources.find(s =>
+      s.files.some(f => f.mappingComplete) && s.files.some(f => f.mappingComplete === false));
+    expect(source).toBeTruthy();
+    const customer = await (await request.get(`/api/customers/${source.customerId}`)).json();
+
+    await page.goto('/');
+    const card = page.locator('.customer-card', {
+      has: page.getByRole('heading', { name: customer.name, exact: true })
+    });
+    const mappingStep = card.locator('.checklist li', { hasText: 'Data Mapping' });
+    await expect(mappingStep.locator('.step-status')).toHaveClass(/in_progress/);
   });
 });

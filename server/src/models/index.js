@@ -21,6 +21,7 @@
  * @property {string} status - 'pending' | 'provisioning' | 'active' | 'failed'
  * @property {string} plan - 'starter' | 'professional' | 'enterprise'
  * @property {string} region - Data residency; defaults to the customer's region when the tenant is created
+ * @property {string|null} failureReason - Why provisioning failed; set while status is 'failed', cleared on Retry
  * @property {string} createdAt - ISO timestamp
  */
 
@@ -133,6 +134,7 @@ function createTenant(data) {
     status: data.status || 'pending',
     plan: data.plan || 'starter',
     region: data.region || '',
+    failureReason: data.failureReason || null,
     createdAt: data.createdAt || new Date().toISOString()
   };
 }
@@ -148,6 +150,20 @@ function createDefaultOnboardingSteps() {
     { id: 'step_3', name: 'Tenant Setup', status: 'pending', order: 3 },
     { id: 'step_4', name: 'Import', status: 'pending', order: 4 }
   ];
+}
+
+const DATA_MAPPING_STEP_ID = 'step_2';
+
+/**
+ * Onboarding step 2 (Data Mapping) status from how many of a customer's entity
+ * mappings are complete (tickets/data-mapping.md, Decision 9).
+ * @param {number} completeCount - Entities whose mapping is complete
+ * @param {number} total - Entities a customer maps (4)
+ * @returns {'pending' | 'in_progress' | 'completed'}
+ */
+function dataMappingStepStatus(completeCount, total) {
+  if (total > 0 && completeCount >= total) return 'completed';
+  return completeCount > 0 ? 'in_progress' : 'pending';
 }
 
 /**
@@ -261,6 +277,8 @@ module.exports = {
   createTenant,
   createDefaultOnboardingSteps,
   calculateProgress,
+  DATA_MAPPING_STEP_ID,
+  dataMappingStepStatus,
   TENANT_STATUS_TRANSITIONS,
   TENANT_STATUS_TO_STEP_STATUS,
   canTransitionTenant,

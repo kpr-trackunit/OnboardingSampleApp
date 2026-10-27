@@ -48,6 +48,28 @@ test.describe('Onboarding Dashboard', () => {
     }
   });
 
+  test('should show a summary strip whose total matches the queue', async ({ page }) => {
+    await page.goto('/');
+
+    const strip = page.getByTestId('summary-strip');
+    await expect(strip).toBeVisible();
+    for (const label of ['Total', 'Not started', 'In progress', 'Done', 'Failed']) {
+      await expect(strip).toContainText(label);
+    }
+
+    const cards = page.locator('.customer-card');
+    await expect(cards.first()).toBeVisible();
+    const cardCount = await cards.count();
+    await expect(page.getByTestId('summary-total').locator('strong')).toHaveText(String(cardCount));
+
+    // The buckets add up to the total
+    let sum = 0;
+    for (const key of ['notStarted', 'inProgress', 'done', 'failed']) {
+      sum += Number(await page.getByTestId(`summary-${key}`).locator('strong').innerText());
+    }
+    expect(sum).toBe(cardCount);
+  });
+
   test('should switch between tabs', async ({ page }) => {
     await page.goto('/');
 
