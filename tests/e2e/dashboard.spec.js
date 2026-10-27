@@ -15,7 +15,7 @@ test.describe('Onboarding Dashboard', () => {
     // Verify all navigation tabs are present
     await expect(page.locator('.tab')).toHaveCount(6);
     await expect(page.getByRole('button', { name: 'Dashboard' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Customers' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Customers', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Customer Info' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Data Mapping' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Tenant Setup' })).toBeVisible();
