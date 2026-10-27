@@ -9,18 +9,19 @@ export const INFO_FIELDS = [
   { key: 'contactEmail', label: 'Contact email' }
 ];
 
-function CustomerInfoTable({ customers }) {
+function CustomerInfoTable({ customers, onSave }) {
   return (
     <table className="customer-info-table">
       <thead>
         <tr>
           <th>Customer</th>
           {INFO_FIELDS.map(field => <th key={field.key}>{field.label}</th>)}
+          <th aria-label="Actions" />
         </tr>
       </thead>
       <tbody>
         {customers.map(customer => (
-          <CustomerInfoRow key={customer.id} customer={customer} fields={INFO_FIELDS} />
+          <CustomerInfoRow key={customer.id} customer={customer} fields={INFO_FIELDS} onSave={onSave} />
         ))}
       </tbody>
     </table>

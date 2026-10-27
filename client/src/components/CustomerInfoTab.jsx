@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import CustomerInfoTable from './CustomerInfoTable';
+import { saveCustomer } from '../api';
 
 // Customer Info (onboarding step 1): one row per customer with the basics CS
 // needs before onboarding starts. App.jsx mounts this only while the tab is
@@ -29,6 +30,23 @@ function CustomerInfoTab() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Saves one customer's info, then re-fetches the list so anything the
+  // server derives from it (e.g. missingInfo for the completeness badge) is
+  // fresh. If the re-fetch fails, the saved customer is swapped in instead.
+  // Save errors are re-thrown so the row can show them and stay in edit mode.
+  const handleSave = async (id, info) => {
+    const saved = await saveCustomer(id, info);
+    try {
+      const res = await fetch('/api/customers');
+      const data = res.ok ? await res.json() : null;
+      if (!Array.isArray(data)) throw new Error('Re-fetch failed');
+      setCustomers(data);
+    } catch {
+      setCustomers(prev => prev.map(c => (c.id === id ? saved : c)));
+    }
+    return saved;
+  };
+
   if (loading) {
     return <div className="placeholder"><p>Loading...</p></div>;
   }
@@ -50,7 +68,7 @@ function CustomerInfoTab() {
       </p>
       {customers.length === 0
         ? <div className="placeholder"><p>No customers yet</p></div>
-        : <CustomerInfoTable customers={customers} />}
+        : <CustomerInfoTable customers={customers} onSave={handleSave} />}
     </div>
   );
 }
