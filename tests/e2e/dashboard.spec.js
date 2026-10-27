@@ -57,6 +57,35 @@ test.describe('Onboarding Dashboard', () => {
     await expect(page.locator('.customer-meta').filter({ hasText: /\bNaN\b/ })).toHaveCount(0);
   });
 
+  test('should list cards in work order: attention first, then oldest first, done last', async ({ page, request }) => {
+    const res = await request.get('/api/onboarding');
+    expect(res.ok()).toBeTruthy();
+    const rows = await res.json();
+    expect(rows.length).toBeGreaterThan(1);
+
+    // The API order follows the rule, computed here from the row fields
+    const bucket = row => (row.needsAttention ? 0 : row.progressPercent === 100 ? 2 : 1);
+    const created = row => {
+      const t = Date.parse(row.customerCreatedAt);
+      return Number.isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
+    };
+    for (let i = 1; i < rows.length; i++) {
+      const prev = rows[i - 1];
+      const cur = rows[i];
+      expect(bucket(prev)).toBeLessThanOrEqual(bucket(cur));
+      if (bucket(prev) === bucket(cur)) {
+        expect(created(prev)).toBeLessThanOrEqual(created(cur));
+      }
+    }
+
+    // The cards show the rows in the order the API returns them
+    await page.goto('/');
+    const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    await expect(page.locator('.customer-card h3')).toHaveText(
+      rows.map(row => new RegExp(`^${escape(row.customerName)}`))
+    );
+  });
+
   test('should switch between tabs', async ({ page }) => {
     await page.goto('/');
 

@@ -1,6 +1,6 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
-const { buildQueue, needsAttention, daysWaiting, sortQueue } = require('./queue');
+const { buildQueue, needsAttention, daysWaiting, sortQueue, compareQueueRows } = require('./queue');
 const { createDefaultOnboardingSteps } = require('./index');
 
 const acme = { id: 'cust_001', name: 'Acme', industry: 'Manufacturing', region: 'EMEA' };
@@ -140,5 +140,82 @@ describe('daysWaiting', () => {
 
     assert.strictEqual(withDate.daysWaiting, 12);
     assert.strictEqual(withoutDate.daysWaiting, null);
+  });
+});
+
+describe('work order (sortQueue with progress and createdAt)', () => {
+  const row = (customerId, { attention = false, progress = 0, createdAt = null } = {}) =>
+    ({ customerId, needsAttention: attention, progressPercent: progress, customerCreatedAt: createdAt });
+
+  it('should order attention first, then active oldest first, then done last', () => {
+    const rows = [
+      row('done', { progress: 100, createdAt: '2025-01-01T00:00:00Z' }),
+      row('newActive', { progress: 25, createdAt: '2025-01-20T00:00:00Z' }),
+      row('notStarted', { progress: 0, createdAt: '2025-01-10T00:00:00Z' }),
+      row('attention', { attention: true, progress: 50, createdAt: '2025-01-25T00:00:00Z' })
+    ];
+
+    assert.deepStrictEqual(
+      sortQueue(rows).map(r => r.customerId),
+      ['attention', 'notStarted', 'newActive', 'done']
+    );
+  });
+
+  it('should order within the attention and done buckets oldest first too', () => {
+    const rows = [
+      row('doneNew', { progress: 100, createdAt: '2025-01-05T00:00:00Z' }),
+      row('attNew', { attention: true, createdAt: '2025-01-05T00:00:00Z' }),
+      row('doneOld', { progress: 100, createdAt: '2025-01-01T00:00:00Z' }),
+      row('attOld', { attention: true, createdAt: '2025-01-01T00:00:00Z' })
+    ];
+
+    assert.deepStrictEqual(
+      sortQueue(rows).map(r => r.customerId),
+      ['attOld', 'attNew', 'doneOld', 'doneNew']
+    );
+  });
+
+  it('should keep the existing order for rows with the same bucket and createdAt', () => {
+    const same = '2025-01-10T00:00:00Z';
+    const rows = [row('a', { createdAt: same }), row('b', { createdAt: same }), row('c', { createdAt: same })];
+
+    assert.deepStrictEqual(sortQueue(rows).map(r => r.customerId), ['a', 'b', 'c']);
+  });
+
+  it('should put a missing or invalid createdAt after dated rows in the same bucket', () => {
+    const rows = [
+      row('missing'),
+      row('invalid', { createdAt: 'not a date' }),
+      row('dated', { createdAt: '2025-01-10T00:00:00Z' })
+    ];
+
+    assert.deepStrictEqual(sortQueue(rows).map(r => r.customerId), ['dated', 'missing', 'invalid']);
+  });
+
+  it('should treat two missing dates as equal (no NaN), keeping their existing order', () => {
+    const rows = [row('b'), row('a'), row('c')];
+
+    assert.deepStrictEqual(sortQueue(rows).map(r => r.customerId), ['b', 'a', 'c']);
+    assert.strictEqual(compareQueueRows(row('x'), row('y')), 0);
+  });
+
+  it('should not let a missing date outrank the bucket', () => {
+    const rows = [
+      row('doneDated', { progress: 100, createdAt: '2025-01-01T00:00:00Z' }),
+      row('activeMissing', { progress: 50 }),
+      row('attentionMissing', { attention: true })
+    ];
+
+    assert.deepStrictEqual(
+      sortQueue(rows).map(r => r.customerId),
+      ['attentionMissing', 'activeMissing', 'doneDated']
+    );
+  });
+
+  it('should copy createdAt onto each row as customerCreatedAt (null when missing)', () => {
+    const [withDate, withoutDate] = buildQueue([{ ...acme, createdAt: '2025-01-15T10:00:00Z' }, globex], []);
+
+    assert.strictEqual(withDate.customerCreatedAt, '2025-01-15T10:00:00Z');
+    assert.strictEqual(withoutDate.customerCreatedAt, null);
   });
 });
