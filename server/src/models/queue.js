@@ -47,4 +47,31 @@ function openIssueCount(issues) {
   return (issues || []).filter(issue => issue.status !== 'resolved').length;
 }
 
-module.exports = { buildQueue, openIssueCount };
+/**
+ * @typedef {Object} QueueSummary
+ * @property {number} total - Number of rows in the queue
+ * @property {number} notStarted - 0% and no failed step
+ * @property {number} inProgress - Everything that isn't not started, done or failed
+ * @property {number} done - 100% and no failed step
+ * @property {number} failed - Any step `failed` (wins over every other bucket)
+ */
+
+/**
+ * Buckets every queue row into exactly one state, so the counts add up to the total.
+ * Failed wins: a partly done customer with a failed step counts as failed.
+ * @param {QueueRow[]} queue
+ * @returns {QueueSummary}
+ */
+function summarise(queue) {
+  const summary = { total: 0, notStarted: 0, inProgress: 0, done: 0, failed: 0 };
+  for (const row of queue || []) {
+    summary.total++;
+    if ((row.steps || []).some(s => s.status === 'failed')) summary.failed++;
+    else if (row.progressPercent >= 100) summary.done++;
+    else if (row.progressPercent <= 0) summary.notStarted++;
+    else summary.inProgress++;
+  }
+  return summary;
+}
+
+module.exports = { buildQueue, openIssueCount, summarise };
