@@ -3,14 +3,17 @@
  * Simple storage for the training exercise - no database needed
  */
 
-const { createCustomer, createTenant, createDefaultOnboardingSteps } = require('../models');
+const { createCustomer, createTenant, createDefaultOnboardingSteps, createMapping } = require('../models');
 const customerFiles = require('./customerFiles');
+const { seedMappings } = require('./mappingSeeds');
 
 // In-memory storage
 const store = {
   customers: [],
   tenants: [],
-  onboardingStates: []
+  onboardingStates: [],
+  mappings: [],
+  clients: []
 };
 
 // Seed with example data
@@ -49,6 +52,24 @@ function seedData() {
   }
   store.tenants.push(exampleTenant);
   store.onboardingStates.push(exampleOnboardingState);
+
+  // Column/value mappings for the sample customers in sample-data/
+  store.mappings.push(...seedMappings().map(({ sourceKey, label, ...mapping }) =>
+    createMapping({ ...mapping, customerId: getSourceCustomerId(sourceKey, label) })
+  ));
+}
+
+// Which customer each import source (sample-data folder) belongs to, keyed by sourceKey.
+// Linked once to the customer with the same name as the source label, so later renames
+// don't break the link; falls back to cust_<sourceKey> when no customer has that name yet.
+const sourceCustomers = {};
+
+function getSourceCustomerId(sourceKey, label) {
+  if (!sourceCustomers[sourceKey]) {
+    const existing = store.customers.find(c => c.name === label);
+    sourceCustomers[sourceKey] = existing ? existing.id : `cust_${sourceKey}`;
+  }
+  return sourceCustomers[sourceKey];
 }
 
 // Initialize with seed data
@@ -121,6 +142,34 @@ function updateOnboardingState(customerId, updates) {
   return null;
 }
 
+function getMappings(customerId) {
+  return store.mappings.filter(m => m.customerId === customerId);
+}
+
+function getMapping(customerId, entity) {
+  return store.mappings.find(m => m.customerId === customerId && m.entity === entity);
+}
+
+// Inserts or replaces the mapping for a customer/entity
+function saveMapping(mapping) {
+  const index = store.mappings.findIndex(m => m.customerId === mapping.customerId && m.entity === mapping.entity);
+  if (index !== -1) {
+    store.mappings[index] = mapping;
+  } else {
+    store.mappings.push(mapping);
+  }
+  return mapping;
+}
+
+function getClients(customerId) {
+  return store.clients.filter(c => c.customerId === customerId);
+}
+
+function addClients(clients) {
+  store.clients.push(...clients);
+  return clients;
+}
+
 module.exports = {
   getCustomers,
   getCustomerById,
@@ -133,5 +182,11 @@ module.exports = {
   getOnboardingState,
   getAllOnboardingStates,
   addOnboardingState,
-  updateOnboardingState
+  updateOnboardingState,
+  getSourceCustomerId,
+  getMappings,
+  getMapping,
+  saveMapping,
+  getClients,
+  addClients
 };

@@ -246,6 +246,8 @@ Intentionally boring and fast:
 | GET | `/api/onboarding` | Dashboard view (all states + customer info) |
 | GET | `/api/tenants/:customerId` | Get tenant by customer ID |
 | GET | `/api/import/sources` | Customer data files in `sample-data/` waiting to be imported, with row counts |
+| POST | `/api/import/:sourceKey/:entity` | Import one file (e.g. `clients`) using the customer's stored mapping |
+| GET | `/api/import/:sourceKey/:entity` | Records imported so far for a source/entity |
 
 ---
 

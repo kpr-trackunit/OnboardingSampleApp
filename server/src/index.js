@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const store = require('./data/store');
 const { createCustomer } = require('./models');
-const { listSources } = require('./import/sources');
+const { ImportError, listImportSources, importEntity, getImported } = require('./import/importer');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -120,7 +120,34 @@ app.get('/api/tenants/:customerId', (req, res) => {
 
 // List customer data files waiting to be imported
 app.get('/api/import/sources', (req, res) => {
-  res.json(listSources());
+  res.json(listImportSources());
+});
+
+// Sends import errors as JSON with their HTTP status
+function handleImportError(res, err) {
+  if (err instanceof ImportError) {
+    return res.status(err.status).json({ error: err.message });
+  }
+  console.error('Import failed:', err);
+  return res.status(500).json({ error: 'Import failed' });
+}
+
+// Import one entity file (e.g. clients) for a source
+app.post('/api/import/:sourceKey/:entity', (req, res) => {
+  try {
+    res.json(importEntity(req.params.sourceKey, req.params.entity));
+  } catch (err) {
+    handleImportError(res, err);
+  }
+});
+
+// List the records imported so far for a source/entity
+app.get('/api/import/:sourceKey/:entity', (req, res) => {
+  try {
+    res.json(getImported(req.params.sourceKey, req.params.entity));
+  } catch (err) {
+    handleImportError(res, err);
+  }
 });
 
 // Start server
