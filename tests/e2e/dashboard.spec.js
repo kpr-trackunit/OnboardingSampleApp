@@ -2,6 +2,10 @@
 const { test, expect } = require('@playwright/test');
 
 test.describe('Onboarding Dashboard', () => {
+  // Run in order in one worker: the "add a customer" test would otherwise race
+  // the test that compares the card count with the customer count
+  test.describe.configure({ mode: 'default' });
+
   test('should display the dashboard heading', async ({ page }) => {
     await page.goto('/');
 
@@ -78,5 +82,23 @@ test.describe('Onboarding Dashboard', () => {
     
     // Verify placeholder content is shown
     await expect(page.locator('.placeholder h2')).toContainText('Customer Info');
+  });
+
+  test('should show a customer added on the Customers tab without a reload', async ({ page }) => {
+    // Unique name so the test is independent of whatever customers already exist
+    const name = `Globex ${Date.now()}`;
+
+    await page.goto('/');
+    await expect(page.locator('.customer-card').first()).toBeVisible();
+    await expect(page.locator('.customer-card h3').filter({ hasText: name })).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Customers', exact: true }).click();
+    await page.getByPlaceholder('New customer name').fill(name);
+    await page.getByRole('button', { name: 'Add Customer' }).click();
+    await expect(page.locator('.customer-card h3').filter({ hasText: name })).toBeVisible();
+
+    // Back to the Dashboard in the same page: no reload, the queue is re-fetched
+    await page.getByRole('button', { name: 'Dashboard', exact: true }).click();
+    await expect(page.locator('.customer-card h3').filter({ hasText: name })).toBeVisible();
   });
 });

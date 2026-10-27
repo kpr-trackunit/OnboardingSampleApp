@@ -15,9 +15,6 @@ const TABS = [
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [onboardingData, setOnboardingData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [customers, setCustomers] = useState([]);
 
   const loadCustomers = () =>
@@ -26,35 +23,9 @@ function App() {
       .then(setCustomers)
       .catch(err => console.error('Failed to fetch customers:', err));
 
-  const loadOnboarding = () =>
-    fetch('/api/onboarding')
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (!Array.isArray(data)) throw new Error('Invalid response format');
-        return data;
-      })
-      .then(data => {
-        setOnboardingData(data);
-        setError(null);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Failed to fetch onboarding data:', err);
-        setError(err.message);
-        setOnboardingData([]);
-        setLoading(false);
-      });
-
   useEffect(() => {
     loadCustomers();
   }, []);
-
-  // Re-fetch whenever the Dashboard is shown, so changes made on other tabs
-  // (e.g. a tenant marked active) are reflected
-  useEffect(() => {
-    if (activeTab === 'dashboard') loadOnboarding();
-  }, [activeTab]);
 
   return (
     <div className="app">
@@ -76,9 +47,7 @@ function App() {
       </nav>
 
       <main className="content">
-        {activeTab === 'dashboard' && (
-          <DashboardTab data={onboardingData} loading={loading} error={error} />
-        )}
+        {activeTab === 'dashboard' && <DashboardTab />}
         {activeTab === 'customers' && <CustomerListTab customers={customers} onSaved={loadCustomers} />}
         {activeTab === 'customer-info' && (
           <PlaceholderTab title="Customer Info" description="Collect and validate customer information" />
@@ -95,7 +64,38 @@ function App() {
   );
 }
 
-function DashboardTab({ data, loading, error }) {
+// DashboardTab owns its fetch. It is unmounted whenever another tab is shown,
+// so it re-fetches each time the Dashboard is opened and reflects work done elsewhere
+function DashboardTab() {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/onboarding')
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = await res.json();
+        if (!Array.isArray(body)) throw new Error('Invalid response format');
+        return body;
+      })
+      .then(body => {
+        if (cancelled) return;
+        setData(body);
+        setError(null);
+        setLoading(false);
+      })
+      .catch(err => {
+        if (cancelled) return;
+        console.error('Failed to fetch onboarding data:', err);
+        setError(err.message);
+        setData([]);
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
   if (loading) {
     return <div className="placeholder"><p>Loading...</p></div>;
   }
