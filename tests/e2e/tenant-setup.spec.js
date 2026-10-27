@@ -105,4 +105,21 @@ test.describe('Tenant Setup', () => {
       await request.patch(`/api/tenants/${customerId}`, { data: { region: originalRegion } });
     }
   });
+
+  test('a customer added on the Customers tab appears in Tenant Setup as pending / starter', async ({ page }) => {
+    const name = `Auto Tenant ${Date.now()}`;
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Customers', exact: true }).click();
+    await page.getByPlaceholder('New customer name').fill(name);
+    const created = page.waitForResponse(res =>
+      res.url().endsWith('/api/customers') && res.request().method() === 'POST');
+    await page.getByRole('button', { name: 'Add Customer' }).click();
+    expect((await created).status()).toBe(201);
+
+    await page.getByRole('button', { name: 'Tenant Setup' }).click();
+    const row = page.locator('.tenant-table tbody tr', { hasText: name });
+    await expect(row).toHaveCount(1);
+    await expect(row.locator('.status-badge')).toHaveText('pending');
+    await expect(row.locator('.plan-select')).toHaveValue('starter');
+  });
 });

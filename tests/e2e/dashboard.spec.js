@@ -37,10 +37,14 @@ test.describe('Onboarding Dashboard', () => {
     const customers = await res.json();
     expect(customers.length).toBeGreaterThan(0);
 
+    // Other specs may add customers in parallel, so count against the queue the page loaded
+    const queueLoaded = page.waitForResponse(r => r.url().endsWith('/api/onboarding'));
     await page.goto('/');
+    const queue = await (await queueLoaded).json();
+    expect(queue.length).toBeGreaterThanOrEqual(customers.length);
 
     // One card per customer, including those with no onboarding state yet
-    await expect(page.locator('.customer-card')).toHaveCount(customers.length);
+    await expect(page.locator('.customer-card')).toHaveCount(queue.length);
     for (const customer of customers) {
       await expect(
         page.locator('.customer-card h3').filter({ hasText: customer.name }).first()

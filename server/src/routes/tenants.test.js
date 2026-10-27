@@ -31,9 +31,18 @@ describe('Tenant routes', () => {
 
       assert.strictEqual(res.status, 200);
       assert.ok(Array.isArray(tenants));
-      assert.strictEqual(tenants.length, 1);
+      // Every customer gets a tenant (seeded or backfilled at startup), exactly one each
+      const customers = store.getCustomers();
+      assert.strictEqual(tenants.length, customers.length);
+      assert.deepStrictEqual(
+        tenants.map(t => t.customerId).sort(),
+        customers.map(c => c.id).sort()
+      );
+      for (const tenant of tenants) {
+        assert.strictEqual(tenant.customerName, store.getCustomerById(tenant.customerId).name);
+      }
 
-      const [acme] = tenants;
+      const acme = tenants.find(t => t.customerId === 'cust_001');
       assert.strictEqual(acme.customerId, 'cust_001');
       // Customer names come from customers/*.md, so compare against the store
       assert.strictEqual(acme.customerName, store.getCustomerById('cust_001').name);
@@ -44,7 +53,7 @@ describe('Tenant routes', () => {
 
     it('should prefill the seeded tenant region from its customer', async () => {
       const res = await fetch(`${baseUrl}/api/tenants`);
-      const [tenant] = await res.json();
+      const tenant = (await res.json()).find(t => t.customerId === 'cust_001');
 
       assert.ok(tenant.region);
       assert.strictEqual(tenant.region, store.getCustomerById(tenant.customerId).region);
