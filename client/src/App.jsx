@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { saveCustomer } from './api';
 import CustomerDetails from './components/CustomerDetails';
 import TenantSetupTab from './components/TenantSetupTab';
+import DataMappingTab from './components/DataMappingTab';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -82,9 +83,7 @@ function App() {
         {activeTab === 'customer-info' && (
           <PlaceholderTab title="Customer Info" description="Collect and validate customer information" />
         )}
-        {activeTab === 'data-mapping' && (
-          <PlaceholderTab title="Data Mapping" description="Map customer data to platform configuration" />
-        )}
+        {activeTab === 'data-mapping' && <DataMappingTab />}
         {activeTab === 'tenant-setup' && (
           <TenantSetupTab />
         )}

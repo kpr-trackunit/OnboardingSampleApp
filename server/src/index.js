@@ -95,6 +95,7 @@ app.get('/api/onboarding', (req, res) => {
 
 // Tenant Setup routes (list, and later status/plan/region updates)
 app.use('/api/tenants', require('./routes/tenants'));
+app.use('/api/mappings', require('./routes/mappings'));
 
 // Get tenant by customer ID
 app.get('/api/tenants/:customerId', (req, res) => {
