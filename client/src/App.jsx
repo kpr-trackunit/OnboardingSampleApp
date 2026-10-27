@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { saveCustomer } from './api';
 import CustomerDetails from './components/CustomerDetails';
 import TenantSetupTab from './components/TenantSetupTab';
+import DataMappingTab from './components/DataMappingTab';
 import SummaryStrip from './components/SummaryStrip';
 import CurrentStepBadge from './components/CurrentStepBadge';
 import AttentionBadge, { attentionCardClass } from './components/AttentionBadge';
@@ -53,9 +54,7 @@ function App() {
         {activeTab === 'dashboard' && <DashboardTab />}
         {activeTab === 'customers' && <CustomerListTab customers={customers} onSaved={loadCustomers} />}
         {activeTab === 'customer-info' && <CustomerInfoTab />}
-        {activeTab === 'data-mapping' && (
-          <PlaceholderTab title="Data Mapping" description="Map customer data to platform configuration" />
-        )}
+        {activeTab === 'data-mapping' && <DataMappingTab />}
         {activeTab === 'tenant-setup' && (
           <TenantSetupTab />
         )}
