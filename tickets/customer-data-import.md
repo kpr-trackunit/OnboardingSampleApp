@@ -1,6 +1,6 @@
 # Import Customer Data
 
-**Type:** Feature · **Area:** Import tab (onboarding step 4) · **Status:** Proposed
+**Type:** Feature · **Area:** Import tab (onboarding step 4) · **Status:** Proposed · **Related:** [data-mapping.md](data-mapping.md)
 
 ## Why
 
@@ -34,11 +34,13 @@ Client       { id, customerId, sourceId, name, entityType, status, startDate, ta
 Contact      { id, customerId, sourceId, clientSourceId, firstName, lastName, email, phone, role, active }
 Account      { id, customerId, code, name, type, subType, normalBalance, active, parentCode }
 Transaction  { id, customerId, sourceId, date, clientSourceId, accountCode, description, direction, amount, currency, status, paymentMethod, reference }
-ImportRun    { id, customerId, entity, startedAt, imported, rejected, errors[] }
+ImportRun    { id, customerId, entity, startedAt, imported, rejected, warnings[], errors[] }
 ```
 
-- Canonical enums: `status` = active | inactive | pending; `direction` = debit | credit; `txStatus` = completed | pending | cancelled; `accountType` = asset | liability | equity | revenue | expense.
+- Standard values are region-neutral and listed in [data-mapping.md](data-mapping.md#standard-values-region-neutral). For example, `status` = active | inactive | pending, `entityType` = company | llc_llp | partnership | sole_trader | non_profit, and `direction` = debit | credit.
+- Every picklist field also stores its original value as `<field>Source` (e.g. `entityTypeSource: "Limited Company"`).
 - Dates are stored as ISO `YYYY-MM-DD`.
+- **Mappings are data, not code.** Column and value maps are `Mapping` objects in the store (one per customer per entity; see [data-mapping.md](data-mapping.md#mapping-model-proposed)). Import reads them, and the Data Mapping tab edits them. The 3 sample customers are seeded at startup.
 
 ---
 
@@ -65,7 +67,7 @@ Each slice is a vertical cut (API, UI and a test) with a demo script. Ship them 
 
 **Tasks**
 - [ ] Add a small CSV parser utility, or a proven dependency like `csv-parse` (decide in the slice).
-- [ ] Add a hard-coded column map for ABC `clients.csv` that converts it to the canonical `Client` shape.
+- [ ] Add the `Mapping` model and store collection, seeded with ABC's clients mapping. Write one shared transform function that converts a row to the canonical `Client` shape using a mapping. Don't hard-code columns in the import code.
 - [ ] Add the `Client` model, store collection and `getClients(customerId)`.
 - [ ] `POST /api/import/:sourceKey/clients` returns `{ imported, rejected }`. `GET /api/import/:sourceKey/clients` lists the imported records.
 - [ ] Add an Import button per source/file and a results table.
@@ -78,9 +80,9 @@ Each slice is a vertical cut (API, UI and a test) with a demo script. Ship them 
 **Demo:** Import clients for XYZ and Premier. Every status shows as `active`/`inactive`/`pending` and every date shows as `YYYY-MM-DD`, whatever the source format was.
 
 **Tasks**
-- [ ] Add column maps for XYZ and Premier `clients.csv`.
-- [ ] Add normalizers for dates (per-source format), status, entity type and revenue (convert to a number).
-- [ ] **Handle the XYZ unquoted-comma rows.** Rejoin the extra trailing fields into `mainContact`, or a more general "too many fields" recovery rule, and cover it with a test.
+- [ ] Seed clients mappings for XYZ and Premier, including value maps for status and entity type (region-neutral values, e.g. `Limited Company` → `company`).
+- [ ] Add normalizers for dates (auto-detected per file, see [data-mapping.md](data-mapping.md) decision 8) and revenue (convert to a number). Store each `<field>Source` next to its standard value.
+- [ ] **Handle the XYZ unquoted-comma rows with a general rule.** When a row has more fields than the header, rejoin the extra fields into the free-text column that overflowed. This must work for uploaded files too, not just XYZ. Cover it with a test.
 - [ ] Unit tests: one table-driven test per normalizer, covering all three source spellings.
 
 ### Slice 4: Show what failed and why
@@ -90,8 +92,9 @@ Each slice is a vertical cut (API, UI and a test) with a demo script. Ship them 
 **Demo:** Import a CSV with a bad date and a missing name, from a small fixture under `tests/`. The result reads "9 imported, 2 rejected", with a per-row reason such as "row 4: `Date Onboarded` '13/45/2023' is not a valid date".
 
 **Tasks**
-- [ ] Add row-level validation for required fields, parseable dates and known enum values. Rejected rows are skipped and never block valid rows.
-- [ ] Record an `ImportRun` with the error list and show the errors in the UI.
+- [ ] Add row-level validation for required fields and parseable dates. Rejected rows are skipped and never block valid rows.
+- [ ] **Unmapped picklist values:** on non-strict fields, use the mapping's default and record a **warning** (row, field, source value, default used). On strict fields (transaction `direction`, account `type`, account `normalBalance`), **reject** the row. See [data-mapping.md](data-mapping.md) decisions 4 and 5.
+- [ ] Record an `ImportRun` with the warning and error lists, and show both in the UI.
 - [ ] Re-importing the same file replaces that customer's clients rather than duplicating them (idempotent by `sourceId`).
 - [ ] Tests: a fixture with bad rows, checking the counts and messages, plus a test that importing twice does not duplicate.
 
@@ -102,7 +105,7 @@ Each slice is a vertical cut (API, UI and a test) with a demo script. Ship them 
 **Demo:** Import contacts for any customer. Each contact shows the client it belongs to, and a contact whose client doesn't exist is rejected with "unknown client `X`".
 
 **Tasks**
-- [ ] Add column maps for all 3 sources, plus `Contact` normalization (active flag `Active`/`Y`/…; keep the phone number as text).
+- [ ] Seed contacts mappings for all 3 sources, plus `Contact` normalization (active flag `Active`/`Y`/…; keep the phone number as text).
 - [ ] Check that each contact's client exists among already-imported clients. Prompt the user to import clients first if none are loaded.
 - [ ] Tests: mapping per source, and rejection of contacts whose client isn't found.
 
@@ -113,7 +116,7 @@ Each slice is a vertical cut (API, UI and a test) with a demo script. Ship them 
 **Demo:** Import accounts for Premier. Codes like `0010` keep their leading zero, types are normalized (`Assets` → `asset`, `Overheads` → `expense`), and the parent/child structure is visible.
 
 **Tasks**
-- [ ] Add column maps and the `Account` model. Keep `code` as a string.
+- [ ] Seed accounts mappings and add the `Account` model. Keep `code` as a string.
 - [ ] Normalize account type and normal balance (`Debit`/`DR`/`D`) and the active flag (`Active`/`1`/`Yes`).
 - [ ] Validate that each `parentCode` exists in the same file.
 - [ ] Tests: leading zeros kept, type mapping per source, orphan parent rejected.
@@ -125,7 +128,7 @@ Each slice is a vertical cut (API, UI and a test) with a demo script. Ship them 
 **Demo:** Import transactions for XYZ and see 25 rows with direction `debit`/`credit`, status `completed`/`pending`/`cancelled`, and a currency (USD, or GBP for Premier).
 
 **Tasks**
-- [ ] Add column maps, the `Transaction` model, and normalizers for direction, status and payment method.
+- [ ] Seed transactions mappings, add the `Transaction` model, and normalize direction (strict), status and payment method.
 - [ ] Check that each transaction's client and account code exist.
 - [ ] Set currency per source (Premier = GBP, everyone else USD for now).
 - [ ] Tests: one mapping test per source, and missing-reference rejections.
@@ -146,13 +149,17 @@ Each slice is a vertical cut (API, UI and a test) with a demo script. Ship them 
 
 ## Later slices (not in this ticket)
 
-These are candidates for follow-up tickets once the above is live:
+Moved to [data-mapping.md](data-mapping.md):
 
-- **Upload a CSV** from the browser instead of reading `sample-data/`.
-- **Configurable column/value mapping in the UI** (the Data Mapping tab) instead of hard-coded maps per source, which is what makes a 4th customer self-service.
-- **Auto-detect the source schema** from the header row.
-- **Dry-run / preview** before committing an import.
-- **Export the rejected rows** as a CSV to send back to the customer.
+- **Upload a CSV** from the browser (Data Mapping slice 6).
+- **Configurable column/value mapping in the UI** (Data Mapping slices 3 and 4), which is what makes a 4th customer self-service.
+- **Suggest mappings from header names** (Data Mapping slice 7).
+- **Preview** before committing an import (Data Mapping slice 8).
+- **Gate import per entity** until its mapping is complete (Data Mapping slice 5).
+
+Still candidates for follow-up tickets:
+
+- **Export the rejected and warning rows** as a CSV to send back to the customer.
 
 ## Out of scope
 
@@ -163,14 +170,16 @@ These are candidates for follow-up tickets once the above is live:
 ## Acceptance criteria (whole ticket)
 
 - [ ] All 12 sample files import with no unexpected rejections. The XYZ clients file imports all 12 rows correctly despite its unquoted commas.
-- [ ] Imported data uses the canonical enums and ISO dates for all three customers.
-- [ ] Every rejected row shows the row number, the column and a readable reason.
+- [ ] Imported data uses the region-neutral standard values and ISO dates for all three customers, and keeps each original value.
+- [ ] Every rejected row shows the row number, the column and a readable reason. Every row that used a default is listed as a warning.
+- [ ] Import reads its column and value maps from the stored `Mapping` objects; no column names are hard-coded in the import code.
 - [ ] Re-running an import never creates duplicates.
 - [ ] The Dashboard reflects the Import step status after **Import all**.
 - [ ] `npm run test:unit` and `npm run test:e2e` pass.
 
 ## Open questions
 
-1. Should an import with some rejected rows mark the step `completed` (with warnings) or `failed`? This ticket currently proposes `failed`.
-2. Should the XYZ unquoted-comma file be fixed in our parser (proposed), or pushed back to the customer?
-3. Is USD the right default currency for ABC and XYZ, or should currency be set per customer?
+1. Should an import with some rejected rows mark the step `completed` (with warnings) or `failed`? This ticket currently proposes `failed`. Rows that only have warnings don't count as failures.
+2. Is USD the right default currency for ABC and XYZ, or should currency be set per customer?
+
+**Resolved:** The XYZ unquoted-comma rows are handled in our parser with a general recovery rule, because uploaded files will have the same problem (see slice 3).
