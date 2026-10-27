@@ -1,0 +1,44 @@
+.preview-scroll {
+  overflow-x: auto;
+}
+
+.preview-table th,
+.preview-table td {
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.preview-column {
+  font-weight: normal;
+  font-size: 0.8rem;
+}
+
+.preview-source {
+  display: block;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.preview-table td.defaulted,
+.defaulted-key {
+  background: #fef3c7;
+}
+
+.preview-table td.error {
+  background: #fee2e2;
+}
+
+.preview-errors td {
+  color: #dc2626;
+  font-size: 0.85rem;
+  white-space: normal;
+}
+
+.preview-errors ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.preview-error {
+  color: #dc2626;
+}
