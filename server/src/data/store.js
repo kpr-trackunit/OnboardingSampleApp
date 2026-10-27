@@ -141,6 +141,11 @@ function getTenantByCustomerId(customerId) {
   return store.tenants.find(t => t.customerId === customerId);
 }
 
+// Import is gated on this (tenant slice 7). A customer without a tenant record is not active.
+function isTenantActive(customerId) {
+  return getTenantByCustomerId(customerId)?.status === 'active';
+}
+
 // Adds a tenant. A tenant without a region gets its customer's region (data residency prefill)
 function addTenant(tenant) {
   const customer = getCustomerById(tenant.customerId);
@@ -154,9 +159,14 @@ const TENANT_SETUP_STEP_ID = 'step_3';
 /**
  * Moves a customer's tenant to a new status, enforcing the transition table,
  * and mirrors it onto onboarding step 3 (recalculating progressPercent).
- * @returns {{ tenant: object } | { error: string, code: 'not_found' | 'invalid_transition' }}
+ * Moving to 'failed' requires a non-empty reason, stored as failureReason;
+ * every other move (e.g. Retry: failed -> provisioning) clears it.
+ * @param {string} customerId
+ * @param {string} status
+ * @param {string} [reason] - Required when status is 'failed'
+ * @returns {{ tenant: object } | { error: string, code: 'not_found' | 'invalid_transition' | 'reason_required' }}
  */
-function updateTenantStatus(customerId, status) {
+function updateTenantStatus(customerId, status, reason) {
   const index = store.tenants.findIndex(t => t.customerId === customerId);
   if (index === -1) {
     return { error: 'Tenant not found', code: 'not_found' };
@@ -170,7 +180,17 @@ function updateTenantStatus(customerId, status) {
     };
   }
 
-  const tenant = { ...current, status };
+  const failureReason = typeof reason === 'string' ? reason.trim() : '';
+  if (status === 'failed' && !failureReason) {
+    return { error: 'A reason is required to mark a tenant failed', code: 'reason_required' };
+  }
+
+  const tenant = {
+    ...current,
+    status,
+    failureReason: status === 'failed' ? failureReason : null
+  };
+  // Slice 8 (status history): append { at, from: current.status, to: status, reason? } to tenant.statusHistory here
   store.tenants[index] = tenant;
 
   const state = getOnboardingState(customerId);
@@ -269,6 +289,7 @@ module.exports = {
   getTenants,
   getTenantList,
   getTenantByCustomerId,
+  isTenantActive,
   addTenant,
   backfillTenants,
   updateTenantStatus,
