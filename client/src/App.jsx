@@ -416,10 +416,18 @@ function ImportResult({ source, summary, records, error }) {
   return (
     <div className="import-result">
       <h3>{source.label}</h3>
-      <p className="import-summary">
-        Imported {summary.imported} {summary.entity}
-        {summary.rejected > 0 && `, ${summary.rejected} rejected`}
+      <p className={`import-summary ${summary.rejected > 0 ? 'has-errors' : ''}`}>
+        {summary.rejected > 0
+          ? `${summary.imported} imported, ${summary.rejected} rejected`
+          : `Imported ${summary.imported} ${summary.entity}`}
+        {summary.warnings?.length > 0 && `, ${summary.warnings.length} warning(s)`}
       </p>
+      {summary.dateFormat && (
+        <p className="muted" style={{ marginBottom: '12px' }}>Dates read as {summary.dateFormat}</p>
+      )}
+
+      <IssueList title="Rejected rows" className="import-errors" issues={summary.errors} />
+      <IssueList title="Imported with defaults" className="import-warnings" issues={summary.warnings} />
 
       <table className="data-table records-table">
         <thead>
@@ -440,6 +448,19 @@ function ImportResult({ source, summary, records, error }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function IssueList({ title, className, issues }) {
+  if (!issues || issues.length === 0) return null;
+
+  return (
+    <div className={`issue-list ${className}`}>
+      <h4>{title} ({issues.length})</h4>
+      <ul>
+        {issues.map((issue, index) => <li key={index}>{issue.message}</li>)}
+      </ul>
     </div>
   );
 }

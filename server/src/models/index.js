@@ -82,6 +82,28 @@ const TENANT_REGIONS = ['North America', 'EU', 'UK', 'APAC'];
  */
 
 /**
+ * @typedef {Object} ImportIssue
+ * @property {number} row - Line number in the source file (the header is line 1)
+ * @property {string|null} field - Canonical field, or null for whole-row problems
+ * @property {string|null} column - Source column
+ * @property {string} value - Source value
+ * @property {string} message - Readable reason, prefixed with the row
+ * @property {string} [default] - Warnings only: the default value that was used
+ */
+
+/**
+ * @typedef {Object} ImportRun
+ * @property {string} id - Unique run identifier
+ * @property {string} customerId - Associated customer ID
+ * @property {string} entity - 'clients' | 'contacts' | 'accounts' | 'transactions'
+ * @property {string} startedAt - ISO timestamp
+ * @property {number} imported - Rows saved
+ * @property {number} rejected - Rows skipped because of errors
+ * @property {ImportIssue[]} warnings - Rows imported with a default value
+ * @property {ImportIssue[]} errors - Why each rejected row was skipped
+ */
+
+/**
  * Creates a new Customer object
  * @param {Partial<Customer>} data 
  * @returns {Customer}
@@ -213,6 +235,25 @@ function createMapping(data) {
   };
 }
 
+/**
+ * Creates a new ImportRun object
+ * @param {Partial<ImportRun>} data
+ * @returns {ImportRun}
+ */
+function createImportRun(data) {
+  const startedAt = data.startedAt || new Date().toISOString();
+  return {
+    id: data.id || `run_${data.customerId}_${data.entity}_${Date.now()}`,
+    customerId: data.customerId || '',
+    entity: data.entity || '',
+    startedAt,
+    imported: data.imported || 0,
+    rejected: data.rejected || 0,
+    warnings: data.warnings || [],
+    errors: data.errors || []
+  };
+}
+
 module.exports = {
   TENANT_PLANS,
   TENANT_REGIONS,
@@ -224,5 +265,6 @@ module.exports = {
   TENANT_STATUS_TO_STEP_STATUS,
   canTransitionTenant,
   createClient,
-  createMapping
+  createMapping,
+  createImportRun
 };
