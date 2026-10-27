@@ -7,26 +7,30 @@ function TenantSetupTab() {
   const [error, setError] = useState(null);
   const [actionError, setActionError] = useState(null);
   const [busyCustomerId, setBusyCustomerId] = useState(null);
+  const [saveError, setSaveError] = useState(null);
 
-  const changeStatus = async (customerId, status) => {
+  // reason is only sent (and required) when marking a tenant failed.
+  // Resolves true on success so the caller can close its reason form.
+  const changeStatus = async (customerId, status, reason) => {
     setBusyCustomerId(customerId);
     setActionError(null);
     try {
       const res = await fetch(`/api/tenants/${customerId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status, reason })
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
       setTenants(current => current.map(t => (t.customerId === customerId ? body : t)));
+      return true;
     } catch (err) {
       setActionError(err.message);
+      return false;
     } finally {
       setBusyCustomerId(null);
     }
   };
-  const [saveError, setSaveError] = useState(null);
 
   useEffect(() => {
     fetch('/api/tenants')
@@ -49,13 +53,13 @@ function TenantSetupTab() {
       });
   }, []);
 
-  // Save a plan change, then show the server's copy of the tenant in its row
-  const savePlan = async (customerId, plan) => {
+  // Save one editable field (plan or region), then show the server's copy of the tenant in its row
+  const saveField = async (customerId, field, value) => {
     try {
       const res = await fetch(`/api/tenants/${customerId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan })
+        body: JSON.stringify({ [field]: value })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -64,8 +68,8 @@ function TenantSetupTab() {
       )));
       setSaveError(null);
     } catch (err) {
-      console.error('Failed to save plan:', err);
-      setSaveError(`Could not save plan: ${err.message}`);
+      console.error(`Failed to save ${field}:`, err);
+      setSaveError(`Could not save ${field}: ${err.message}`);
     }
   };
 
@@ -98,7 +102,8 @@ function TenantSetupTab() {
         tenants={tenants}
         onStatusChange={changeStatus}
         busyCustomerId={busyCustomerId}
-        onPlanChange={savePlan}
+        onPlanChange={(customerId, plan) => saveField(customerId, 'plan', plan)}
+        onRegionChange={(customerId, region) => saveField(customerId, 'region', region)}
       />
     </div>
   );

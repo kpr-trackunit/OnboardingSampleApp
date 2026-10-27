@@ -2,6 +2,10 @@
 const { test, expect } = require('@playwright/test');
 
 test.describe('Onboarding Dashboard', () => {
+  // Run in order in one worker: the "add a customer" test would otherwise race
+  // the test that compares the card count with the customer count
+  test.describe.configure({ mode: 'default' });
+
   test('should display the dashboard heading', async ({ page }) => {
     await page.goto('/');
 
@@ -48,6 +52,37 @@ test.describe('Onboarding Dashboard', () => {
     }
   });
 
+  test('should show a summary strip whose total matches the queue', async ({ page }) => {
+    await page.goto('/');
+
+    const strip = page.getByTestId('summary-strip');
+    await expect(strip).toBeVisible();
+    for (const label of ['Total', 'Not started', 'In progress', 'Done', 'Failed']) {
+      await expect(strip).toContainText(label);
+    }
+
+    const cards = page.locator('.customer-card');
+    await expect(cards.first()).toBeVisible();
+    const cardCount = await cards.count();
+    await expect(page.getByTestId('summary-total').locator('strong')).toHaveText(String(cardCount));
+
+    // The buckets add up to the total
+    let sum = 0;
+    for (const key of ['notStarted', 'inProgress', 'done', 'failed']) {
+      sum += Number(await page.getByTestId(`summary-${key}`).locator('strong').innerText());
+    }
+    expect(sum).toBe(cardCount);
+  });
+
+  test('should show how many days each customer has been waiting', async ({ page }) => {
+    await page.goto('/');
+
+    // At least one seeded customer has a createdAt, so shows a whole number of days
+    const waiting = page.locator('.customer-card .days-waiting');
+    await expect(waiting.first()).toHaveText(/^⏳ Waiting \d+ days?$/);
+    await expect(page.locator('.customer-meta').filter({ hasText: /\bNaN\b/ })).toHaveCount(0);
+  });
+
   test('should switch between tabs', async ({ page }) => {
     await page.goto('/');
 
@@ -56,6 +91,24 @@ test.describe('Onboarding Dashboard', () => {
     
     // Verify placeholder content is shown
     await expect(page.locator('.placeholder h2')).toContainText('Customer Info');
+  });
+
+  test('should show a customer added on the Customers tab without a reload', async ({ page }) => {
+    // Unique name so the test is independent of whatever customers already exist
+    const name = `Globex ${Date.now()}`;
+
+    await page.goto('/');
+    await expect(page.locator('.customer-card').first()).toBeVisible();
+    await expect(page.locator('.customer-card h3').filter({ hasText: name })).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Customers', exact: true }).click();
+    await page.getByPlaceholder('New customer name').fill(name);
+    await page.getByRole('button', { name: 'Add Customer' }).click();
+    await expect(page.locator('.customer-card h3').filter({ hasText: name })).toBeVisible();
+
+    // Back to the Dashboard in the same page: no reload, the queue is re-fetched
+    await page.getByRole('button', { name: 'Dashboard', exact: true }).click();
+    await expect(page.locator('.customer-card h3').filter({ hasText: name })).toBeVisible();
   });
 });
 

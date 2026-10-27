@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { saveCustomer } from './api';
 import CustomerDetails from './components/CustomerDetails';
 import TenantSetupTab from './components/TenantSetupTab';
+import SummaryStrip from './components/SummaryStrip';
 import CurrentStepBadge from './components/CurrentStepBadge';
 import StepFilter, { ALL, matchesStepFilter } from './components/StepFilter';
 
@@ -16,9 +17,6 @@ const TABS = [
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [onboardingData, setOnboardingData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [customers, setCustomers] = useState([]);
 
   const loadCustomers = () =>
@@ -27,35 +25,9 @@ function App() {
       .then(setCustomers)
       .catch(err => console.error('Failed to fetch customers:', err));
 
-  const loadOnboarding = () =>
-    fetch('/api/onboarding')
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (!Array.isArray(data)) throw new Error('Invalid response format');
-        return data;
-      })
-      .then(data => {
-        setOnboardingData(data);
-        setError(null);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Failed to fetch onboarding data:', err);
-        setError(err.message);
-        setOnboardingData([]);
-        setLoading(false);
-      });
-
   useEffect(() => {
     loadCustomers();
   }, []);
-
-  // Re-fetch whenever the Dashboard is shown, so changes made on other tabs
-  // (e.g. a tenant marked active) are reflected
-  useEffect(() => {
-    if (activeTab === 'dashboard') loadOnboarding();
-  }, [activeTab]);
 
   return (
     <div className="app">
@@ -77,9 +49,7 @@ function App() {
       </nav>
 
       <main className="content">
-        {activeTab === 'dashboard' && (
-          <DashboardTab data={onboardingData} loading={loading} error={error} />
-        )}
+        {activeTab === 'dashboard' && <DashboardTab />}
         {activeTab === 'customers' && <CustomerListTab customers={customers} onSaved={loadCustomers} />}
         {activeTab === 'customer-info' && (
           <PlaceholderTab title="Customer Info" description="Collect and validate customer information" />
@@ -96,8 +66,39 @@ function App() {
   );
 }
 
-function DashboardTab({ data, loading, error }) {
+// DashboardTab owns its fetch. It is unmounted whenever another tab is shown,
+// so it re-fetches each time the Dashboard is opened and reflects work done elsewhere
+function DashboardTab() {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [stepFilter, setStepFilter] = useState(ALL);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/onboarding')
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = await res.json();
+        if (!Array.isArray(body)) throw new Error('Invalid response format');
+        return body;
+      })
+      .then(body => {
+        if (cancelled) return;
+        setData(body);
+        setError(null);
+        setLoading(false);
+      })
+      .catch(err => {
+        if (cancelled) return;
+        console.error('Failed to fetch onboarding data:', err);
+        setError(err.message);
+        setData([]);
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
   if (loading) {
     return <div className="placeholder"><p>Loading...</p></div>;
   }
@@ -121,6 +122,7 @@ function DashboardTab({ data, loading, error }) {
       <p style={{ color: '#6b7280', marginBottom: '20px' }}>
         {data.length} customer(s) awaiting onboarding
       </p>
+      <SummaryStrip />
 
       <StepFilter rows={data} value={stepFilter} onChange={setStepFilter} />
       {data.filter(item => matchesStepFilter(item, stepFilter)).map(item => (
@@ -130,6 +132,12 @@ function DashboardTab({ data, loading, error }) {
           <div className="customer-meta">
             <span>📍 {item.customerRegion}</span>
             <span>🏭 {item.customerIndustry}</span>
+            {item.openIssueCount > 0 && (
+              <span className="open-issues">{item.openIssueCount} open issue{item.openIssueCount === 1 ? '' : 's'}</span>
+            )}
+            {item.daysWaiting != null && (
+              <span className="days-waiting">⏳ Waiting {item.daysWaiting} {item.daysWaiting === 1 ? 'day' : 'days'}</span>
+            )}
           </div>
 
           <div className="progress-section">
@@ -377,7 +385,14 @@ function ImportTab() {
         <tbody>
           {sources.map(source => source.files.map((file, index) => (
             <tr key={`${source.sourceKey}-${file.entity}`} data-source={source.sourceKey}>
-              {index === 0 && <td rowSpan={source.files.length} className="source-label">{source.label}</td>}
+              {index === 0 && (
+                <td rowSpan={source.files.length}>
+                  <span className="source-label">{source.label}</span>
+                  {!source.tenantActive && (
+                    <p className="tenant-notice" role="status">Tenant not active yet. Finish Tenant Setup first</p>
+                  )}
+                </td>
+              )}
               <td>{file.entity}</td>
               <td><code>{file.filename}</code></td>
               <td>{file.rowCount} rows</td>
@@ -385,7 +400,7 @@ function ImportTab() {
                 {file.importable ? (
                   <button
                     className="button"
-                    disabled={importing !== null}
+                    disabled={importing !== null || !source.tenantActive}
                     onClick={() => runImport(source, file)}
                   >
                     {importing === `${source.sourceKey}-${file.entity}` ? 'Importing...' : `Import ${file.entity}`}
@@ -421,10 +436,18 @@ function ImportResult({ source, summary, records, error }) {
   return (
     <div className="import-result">
       <h3>{source.label}</h3>
-      <p className="import-summary">
-        Imported {summary.imported} {summary.entity}
-        {summary.rejected > 0 && `, ${summary.rejected} rejected`}
+      <p className={`import-summary ${summary.rejected > 0 ? 'has-errors' : ''}`}>
+        {summary.rejected > 0
+          ? `${summary.imported} imported, ${summary.rejected} rejected`
+          : `Imported ${summary.imported} ${summary.entity}`}
+        {summary.warnings?.length > 0 && `, ${summary.warnings.length} warning(s)`}
       </p>
+      {summary.dateFormat && (
+        <p className="muted" style={{ marginBottom: '12px' }}>Dates read as {summary.dateFormat}</p>
+      )}
+
+      <IssueList title="Rejected rows" className="import-errors" issues={summary.errors} />
+      <IssueList title="Imported with defaults" className="import-warnings" issues={summary.warnings} />
 
       <table className="data-table records-table">
         <thead>
@@ -445,6 +468,19 @@ function ImportResult({ source, summary, records, error }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function IssueList({ title, className, issues }) {
+  if (!issues || issues.length === 0) return null;
+
+  return (
+    <div className={`issue-list ${className}`}>
+      <h4>{title} ({issues.length})</h4>
+      <ul>
+        {issues.map((issue, index) => <li key={index}>{issue.message}</li>)}
+      </ul>
     </div>
   );
 }
