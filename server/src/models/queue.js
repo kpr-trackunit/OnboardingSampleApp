@@ -12,6 +12,7 @@ const { createDefaultOnboardingSteps, calculateProgress } = require('./index');
  * @property {string} customerRegion - Customer region ('' if unknown)
  * @property {import('./index').OnboardingStep[]} steps - The customer's steps, or the default pending steps
  * @property {number} progressPercent - Progress calculated from the steps (0-100)
+ * @property {number} openIssueCount - Issues that aren't resolved (0 if none)
  */
 
 /**
@@ -30,10 +31,20 @@ function buildQueue(customers, states) {
       customerName: customer.name || 'Unknown',
       customerIndustry: customer.industry || '',
       customerRegion: customer.region || '',
+      openIssueCount: openIssueCount(customer.issues),
       steps,
       progressPercent: calculateProgress(steps)
     };
   });
 }
 
-module.exports = { buildQueue };
+/**
+ * Counts a customer's known blockers: issues whose status isn't 'resolved'.
+ * @param {{ status: string, title: string }[] | undefined} issues
+ * @returns {number} 0 when the list is missing or empty
+ */
+function openIssueCount(issues) {
+  return (issues || []).filter(issue => issue.status !== 'resolved').length;
+}
+
+module.exports = { buildQueue, openIssueCount };

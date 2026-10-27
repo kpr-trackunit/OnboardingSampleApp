@@ -125,6 +125,9 @@ function DashboardTab({ data, loading, error }) {
           <div className="customer-meta">
             <span>📍 {item.customerRegion}</span>
             <span>🏭 {item.customerIndustry}</span>
+            {item.openIssueCount > 0 && (
+              <span className="open-issues">{item.openIssueCount} open issue{item.openIssueCount === 1 ? '' : 's'}</span>
+            )}
           </div>
 
           <div className="progress-section">
