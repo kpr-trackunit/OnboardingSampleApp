@@ -388,7 +388,12 @@ function ImportTab() {
               <td><code>{file.filename}</code></td>
               <td>{file.rowCount} rows</td>
               <td>
-                {file.importable ? (
+                {file.mappingComplete === false ? (
+                  <>
+                    <button className="button" disabled>{`Import ${file.entity}`}</button>
+                    <MappingNotice reasons={file.mappingReasons} />
+                  </>
+                ) : file.importable ? (
                   <button
                     className="button"
                     disabled={importing !== null || !source.tenantActive}
@@ -397,7 +402,7 @@ function ImportTab() {
                     {importing === `${source.sourceKey}-${file.entity}` ? 'Importing...' : `Import ${file.entity}`}
                   </button>
                 ) : (
-                  <span className="muted">No mapping yet</span>
+                  <span className="muted">Import not available yet</span>
                 )}
               </td>
             </tr>
@@ -406,6 +411,20 @@ function ImportTab() {
       </table>
 
       {result && <ImportResult {...result} />}
+    </div>
+  );
+}
+
+// Why an entity can't be imported yet: its mapping isn't complete (data-mapping slice 5)
+function MappingNotice({ reasons = [] }) {
+  return (
+    <div className="mapping-notice" role="status">
+      <p className="mapping-notice-title">Mapping incomplete</p>
+      {reasons.length > 0 && (
+        <ul className="mapping-notice-reasons">
+          {reasons.map((reason, i) => <li key={i}>{reason.message}</li>)}
+        </ul>
+      )}
     </div>
   );
 }

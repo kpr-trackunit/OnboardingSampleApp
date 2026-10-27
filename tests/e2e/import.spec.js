@@ -127,4 +127,55 @@ test.describe('Import Tab', () => {
     await expect(dockside).toContainText('inactive');
     await expect(dockside).toContainText('DORMANT');
   });
+
+  test('should gate import per entity: clients importable, transactions blocked until its mapping is complete', async ({ page, request }) => {
+    // A sample customer whose clients mapping is complete and transactions mapping isn't
+    const res = await request.get('/api/import/sources');
+    expect(res.ok()).toBeTruthy();
+    const byEntity = source => Object.fromEntries(source.files.map(f => [f.entity, f]));
+    const source = (await res.json()).find(s =>
+      byEntity(s).clients?.mappingComplete && byEntity(s).transactions?.mappingComplete === false);
+    expect(source, 'a source with clients complete and transactions incomplete').toBeTruthy();
+    const transactions = byEntity(source).transactions;
+    expect(transactions.mappingReasons.length).toBeGreaterThan(0);
+
+    await resetTenantToPending(request, source.customerId);
+    await activateTenant(request, source.customerId);
+    await openImportTab(page);
+
+    const rows = page.locator(`.sources-table tr[data-source="${source.sourceKey}"]`);
+    const clientsRow = rows.filter({ hasText: 'clients.csv' });
+    const transactionsRow = rows.filter({ hasText: transactions.filename });
+
+    await expect(clientsRow.getByRole('button', { name: 'Import clients' })).toBeEnabled();
+    await expect(clientsRow.locator('.mapping-notice')).toHaveCount(0);
+
+    await expect(transactionsRow.getByRole('button', { name: 'Import transactions' })).toBeDisabled();
+    const notice = transactionsRow.locator('.mapping-notice');
+    await expect(notice.locator('.mapping-notice-title')).toHaveText('Mapping incomplete');
+    await expect(notice.locator('.mapping-notice-reasons li')).toHaveText(
+      transactions.mappingReasons.map(r => r.message));
+
+    // The server enforces it too, after the (now passing) tenant check
+    const blocked = await request.post(`/api/import/${source.sourceKey}/transactions`);
+    expect(blocked.status()).toBe(409);
+    const body = await blocked.json();
+    expect(body.error).toBe('Mapping incomplete');
+    expect(body.reasons).toEqual(transactions.mappingReasons);
+  });
+
+  test('should show the Data Mapping step in progress for a customer with some complete mappings', async ({ page, request }) => {
+    const sources = await (await request.get('/api/import/sources')).json();
+    const source = sources.find(s =>
+      s.files.some(f => f.mappingComplete) && s.files.some(f => f.mappingComplete === false));
+    expect(source).toBeTruthy();
+    const customer = await (await request.get(`/api/customers/${source.customerId}`)).json();
+
+    await page.goto('/');
+    const card = page.locator('.customer-card', {
+      has: page.getByRole('heading', { name: customer.name, exact: true })
+    });
+    const mappingStep = card.locator('.checklist li', { hasText: 'Data Mapping' });
+    await expect(mappingStep.locator('.step-status')).toHaveClass(/in_progress/);
+  });
 });

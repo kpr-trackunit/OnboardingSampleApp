@@ -211,6 +211,22 @@ header p {
   font-size: 0.8rem;
 }
 
+.mapping-notice {
+  margin-top: 4px;
+  color: #b45309;
+  font-size: 0.8rem;
+}
+
+.mapping-notice-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.mapping-notice-reasons {
+  margin: 2px 0 0;
+  padding-left: 16px;
+}
+
 .button {
   padding: 6px 14px;
   border: none;

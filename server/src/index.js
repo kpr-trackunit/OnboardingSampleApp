@@ -4,7 +4,8 @@ const store = require('./data/store');
 const { createCustomer } = require('./models');
 const { buildQueue, summarise } = require('./models/queue');
 const { ImportError, listImportSources, importEntity, getImported } = require('./import/importer');
-const { requireActiveTenant } = require('./routes/importGuard');
+const { requireActiveTenant, requireCompleteMapping, blockingReasons } = require('./routes/importGuard');
+const { entityCompleteness, syncDataMappingStep } = require('./import/completeness');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -113,11 +114,16 @@ app.get('/api/tenants/:customerId', (req, res) => {
 });
 
 // List customer data files waiting to be imported. Always allowed; tenantActive
-// tells the Import tab whether the source's customer may import yet (tenant slice 7).
+// tells the Import tab whether the source's customer may import yet (tenant slice 7),
+// and each file's mappingComplete/mappingReasons whether that entity may (data-mapping slice 5).
 app.get('/api/import/sources', (req, res) => {
   res.json(listImportSources().map(source => ({
     ...source,
-    tenantActive: store.isTenantActive(source.customerId)
+    tenantActive: store.isTenantActive(source.customerId),
+    files: source.files.map(file => {
+      const completeness = entityCompleteness(source.customerId, file.entity);
+      return { ...file, mappingComplete: completeness.complete, mappingReasons: blockingReasons(completeness) };
+    })
   })));
 });
 
@@ -130,8 +136,9 @@ function handleImportError(res, err) {
   return res.status(500).json({ error: 'Import failed' });
 }
 
-// Import one entity file (e.g. clients) for a source. 409 until the tenant is active.
-app.post('/api/import/:sourceKey/:entity', requireActiveTenant(), (req, res) => {
+// Import one entity file (e.g. clients) for a source. 409 until the tenant is active,
+// then 409 until that entity's mapping is complete.
+app.post('/api/import/:sourceKey/:entity', requireActiveTenant(), requireCompleteMapping(), (req, res) => {
   try {
     res.json(importEntity(req.params.sourceKey, req.params.entity));
   } catch (err) {
@@ -152,6 +159,9 @@ app.get('/api/import/:sourceKey/:entity', (req, res) => {
 if (process.env.ENABLE_TEST_ROUTES === 'true') {
   app.use('/api/test', require('./routes/testSupport'));
 }
+
+// Onboarding step 2 reflects the seeded mappings from the start
+store.getCustomers().forEach(customer => syncDataMappingStep(customer.id));
 
 // Start server
 app.listen(PORT, () => {

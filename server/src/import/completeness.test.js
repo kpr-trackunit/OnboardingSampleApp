@@ -193,3 +193,68 @@ describe('readFileRows', () => {
     rows.forEach(row => assert.ok(row.clientStatus && row.entityType));
   });
 });
+
+describe('dataMappingStepStatus', () => {
+  const { dataMappingStepStatus } = require('../models');
+
+  it('is pending when no entity mapping is complete', () => {
+    assert.strictEqual(dataMappingStepStatus(0, 4), 'pending');
+  });
+
+  it('is in_progress when some are complete', () => {
+    for (const count of [1, 2, 3]) assert.strictEqual(dataMappingStepStatus(count, 4), 'in_progress');
+  });
+
+  it('is completed when all 4 are complete', () => {
+    assert.strictEqual(dataMappingStepStatus(4, 4), 'completed');
+  });
+});
+
+describe('syncDataMappingStep', () => {
+  const store = require('../data/store');
+  const { ENTITIES, syncDataMappingStep } = require('./completeness');
+
+  // Completeness stub: the first `count` entities (in import order) are complete
+  const completeFor = count => (customerId, entity) => ({
+    complete: ENTITIES.indexOf(entity) < count, reasons: [], dateFormat: null
+  });
+  const step2 = customerId => store.getOnboardingState(customerId).steps.find(s => s.id === 'step_2');
+
+  it('mirrors none, some and all complete onto step 2 and recalculates progress', () => {
+    const customerId = 'cust_001'; // seeded with an onboarding state, all steps pending
+
+    syncDataMappingStep(customerId, completeFor(0));
+    assert.strictEqual(step2(customerId).status, 'pending');
+    assert.strictEqual(store.getOnboardingState(customerId).progressPercent, 0);
+
+    syncDataMappingStep(customerId, completeFor(2));
+    assert.strictEqual(step2(customerId).status, 'in_progress');
+    assert.strictEqual(store.getOnboardingState(customerId).progressPercent, 0);
+
+    syncDataMappingStep(customerId, completeFor(4));
+    assert.strictEqual(step2(customerId).status, 'completed');
+    assert.strictEqual(store.getOnboardingState(customerId).progressPercent, 25);
+
+    // Back to incomplete, e.g. a column was unmapped
+    syncDataMappingStep(customerId, completeFor(3));
+    assert.strictEqual(step2(customerId).status, 'in_progress');
+    assert.strictEqual(store.getOnboardingState(customerId).progressPercent, 0);
+  });
+
+  it('creates the onboarding state only when step 2 is no longer pending', () => {
+    const customer = store.getCustomers().find(c => !store.getOnboardingState(c.id));
+    assert.ok(customer, 'a customer without an onboarding state');
+
+    assert.strictEqual(syncDataMappingStep(customer.id, completeFor(0)), null);
+    assert.strictEqual(store.getOnboardingState(customer.id), undefined);
+
+    const state = syncDataMappingStep(customer.id, completeFor(1));
+    assert.strictEqual(state.steps.length, 4);
+    assert.strictEqual(step2(customer.id).status, 'in_progress');
+    assert.ok(state.steps.filter(s => s.id !== 'step_2').every(s => s.status === 'pending'));
+  });
+
+  it('ignores an unknown customer', () => {
+    assert.strictEqual(syncDataMappingStep('no-such-customer', completeFor(4)), null);
+  });
+});

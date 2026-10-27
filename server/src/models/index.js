@@ -152,6 +152,20 @@ function createDefaultOnboardingSteps() {
   ];
 }
 
+const DATA_MAPPING_STEP_ID = 'step_2';
+
+/**
+ * Onboarding step 2 (Data Mapping) status from how many of a customer's entity
+ * mappings are complete (tickets/data-mapping.md, Decision 9).
+ * @param {number} completeCount - Entities whose mapping is complete
+ * @param {number} total - Entities a customer maps (4)
+ * @returns {'pending' | 'in_progress' | 'completed'}
+ */
+function dataMappingStepStatus(completeCount, total) {
+  if (total > 0 && completeCount >= total) return 'completed';
+  return completeCount > 0 ? 'in_progress' : 'pending';
+}
+
 /**
  * Calculates progress percentage from steps
  * @param {OnboardingStep[]} steps 
@@ -263,6 +277,8 @@ module.exports = {
   createTenant,
   createDefaultOnboardingSteps,
   calculateProgress,
+  DATA_MAPPING_STEP_ID,
+  dataMappingStepStatus,
   TENANT_STATUS_TRANSITIONS,
   TENANT_STATUS_TO_STEP_STATUS,
   canTransitionTenant,

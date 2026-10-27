@@ -16,10 +16,21 @@
 
 const fs = require('fs');
 const path = require('path');
-const { DEFAULT_DATA_DIR, listSources } = require('./sources');
+const { DEFAULT_DATA_DIR, ENTITY_FILES, listSources } = require('./sources');
 const { parseCsv } = require('./csv');
 const { rejoinOverflow } = require('./overflow');
 const { detectDateFormat } = require('./normalizers');
+const store = require('../data/store');
+const { getTargetFields } = require('../models/targetFields');
+const {
+  createDefaultOnboardingSteps,
+  calculateProgress,
+  dataMappingStepStatus,
+  DATA_MAPPING_STEP_ID
+} = require('../models');
+
+// clients | contacts | accounts | transactions, in import order
+const ENTITIES = ENTITY_FILES.map(f => f.entity);
 
 /**
  * @typedef {{
@@ -184,7 +195,55 @@ function readFileRows(customerId, mapping, { dataDir = DEFAULT_DATA_DIR, getSour
     .map(fields => Object.fromEntries(header.map((column, i) => [column, fields[i]])));
 }
 
+/**
+ * A customer's mapping for one entity, checked against that customer's source file.
+ * Shared by the mapping routes, the import gate and the onboarding step sync.
+ * @param {string} customerId
+ * @param {string} entity
+ * @returns {Completeness}
+ */
+function entityCompleteness(customerId, entity) {
+  const mapping = store.getMapping(customerId, entity) || null;
+  const fileRows = mapping
+    ? readFileRows(customerId, mapping, { getSourceCustomerId: store.getSourceCustomerId })
+    : null;
+  return mappingCompleteness(mapping, fileRows, getTargetFields(entity));
+}
+
+/**
+ * Mirrors a customer's mapping completeness onto onboarding step 2 (Data Mapping) and
+ * recalculates progressPercent: completed when all 4 entities are complete, in_progress
+ * when some are, pending when none are. Call it whenever a mapping's completeness could
+ * change (the mapping PUT in data-mapping slices 3 and 4, uploads) and once at startup.
+ *
+ * A customer without an onboarding state already shows the default (all pending) steps
+ * on the Dashboard, so a state is only created when step 2 needs to be something else.
+ * @param {string} customerId
+ * @param {(customerId: string, entity: string) => Completeness} [getCompleteness]
+ * @returns {import('../models').OnboardingState | null} The updated state, or null when
+ *   the customer is unknown or nothing needed writing
+ */
+function syncDataMappingStep(customerId, getCompleteness = entityCompleteness) {
+  if (!store.getCustomerById(customerId)) return null;
+
+  const completeCount = ENTITIES.filter(entity => getCompleteness(customerId, entity).complete).length;
+  const status = dataMappingStepStatus(completeCount, ENTITIES.length);
+
+  const existing = store.getOnboardingState(customerId);
+  if (!existing && status === 'pending') return null;
+
+  const steps = (existing?.steps || createDefaultOnboardingSteps()).map(step =>
+    step.id === DATA_MAPPING_STEP_ID ? { ...step, status } : step
+  );
+  const progressPercent = calculateProgress(steps);
+  if (!existing) return store.addOnboardingState({ customerId, steps, progressPercent });
+  return store.updateOnboardingState(customerId, { steps, progressPercent });
+}
+
 module.exports = {
+  ENTITIES,
   mappingCompleteness,
-  readFileRows
+  readFileRows,
+  entityCompleteness,
+  syncDataMappingStep
 };
