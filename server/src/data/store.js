@@ -64,6 +64,8 @@ function seedData() {
   }
   // Added after the customers load so its region is backfilled from the customer
   addTenant(exampleTenant);
+  // Every other customer gets a default tenant, so none is missing from Tenant Setup
+  backfillTenants();
   store.onboardingStates.push(exampleOnboardingState);
 
   // Column/value mappings for the sample customers in sample-data/
@@ -97,10 +99,24 @@ function getCustomerById(id) {
   return store.customers.find(c => c.id === id);
 }
 
+// Adds a customer and, unless it already has one, its default tenant (pending / starter)
 function addCustomer(customer) {
   customerFiles.save(customer);
   store.customers.push(customer);
+  ensureTenant(customer.id);
   return customer;
+}
+
+// Creates the default tenant for a customer that has none; one tenant per customerId.
+// The id is derived from the customer id, since a timestamp id collides within a backfill
+function ensureTenant(customerId) {
+  return getTenantByCustomerId(customerId)
+    || addTenant(createTenant({ id: `tenant_${customerId}`, customerId }));
+}
+
+// Gives every customer without a tenant its default tenant. Safe to run repeatedly
+function backfillTenants() {
+  store.customers.forEach(customer => ensureTenant(customer.id));
 }
 
 function updateCustomer(id, updates) {
@@ -126,6 +142,11 @@ function getTenantList() {
 
 function getTenantByCustomerId(customerId) {
   return store.tenants.find(t => t.customerId === customerId);
+}
+
+// Import is gated on this (tenant slice 7). A customer without a tenant record is not active.
+function isTenantActive(customerId) {
+  return getTenantByCustomerId(customerId)?.status === 'active';
 }
 
 // Adds a tenant. A tenant without a region gets its customer's region (data residency prefill)
@@ -327,7 +348,9 @@ module.exports = {
   getTenants,
   getTenantList,
   getTenantByCustomerId,
+  isTenantActive,
   addTenant,
+  backfillTenants,
   updateTenantStatus,
   updateTenant,
   getOnboardingState,
