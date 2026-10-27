@@ -73,6 +73,7 @@ describe('Tenant routes', () => {
 
     afterEach(() => {
       forceStatus(originalTenant.status, originalTenant.failureReason);
+      store.getTenantByCustomerId(customerId).statusHistory = [...originalTenant.statusHistory];
       store.updateOnboardingState(customerId, structuredClone(originalState));
     });
 
@@ -246,6 +247,59 @@ describe('Tenant routes', () => {
         assert.strictEqual(res.status, 409);
       });
     });
+
+    describe('status history', () => {
+      const history = () => store.getTenantByCustomerId(customerId).statusHistory;
+
+      it('appends an entry per change, in order, across Start -> Mark failed -> Retry', async () => {
+        forceStatus('pending');
+        const before = history().length;
+        const startedAt = Date.now();
+
+        await patchStatus('provisioning');
+        await patchStatus('failed', customerId, `  ${REASON}  `);
+        const res = await patchStatus('provisioning');
+        const body = await res.json();
+
+        const added = history().slice(before);
+        assert.deepStrictEqual(
+          added.map(({ from, to }) => ({ from, to })),
+          [
+            { from: 'pending', to: 'provisioning' },
+            { from: 'provisioning', to: 'failed' },
+            { from: 'failed', to: 'provisioning' }
+          ]
+        );
+
+        // The (trimmed) reason is kept on the failed entry only, even after Retry clears failureReason
+        assert.strictEqual(added[1].reason, REASON);
+        assert.ok(!('reason' in added[0]));
+        assert.ok(!('reason' in added[2]));
+        assert.strictEqual(body.failureReason, null);
+
+        // Timestamps are ISO strings, in order, from this test run
+        const times = added.map(e => Date.parse(e.at));
+        assert.ok(added.every(e => new Date(e.at).toISOString() === e.at));
+        assert.ok(times[0] >= startedAt - 1000);
+        assert.ok(times[0] <= times[1] && times[1] <= times[2]);
+
+        // The PATCH response and GET /api/tenants both carry the history
+        assert.deepStrictEqual(body.statusHistory, history());
+        const list = await (await fetch(`${baseUrl}/api/tenants`)).json();
+        assert.deepStrictEqual(list.find(t => t.customerId === customerId).statusHistory, history());
+      });
+
+      it('does not log a rejected transition or a missing reason', async () => {
+        forceStatus('pending');
+        const before = history().length;
+
+        assert.strictEqual((await patchStatus('active')).status, 409);
+        forceStatus('provisioning');
+        assert.strictEqual((await patchStatus('failed', customerId, '  ')).status, 400);
+
+        assert.strictEqual(history().length, before);
+      });
+    });
   });
 
   describe('PATCH /api/tenants/:customerId', () => {
@@ -277,6 +331,17 @@ describe('Tenant routes', () => {
       assert.strictEqual(res.status, 200);
       assert.strictEqual(tenant.plan, 'enterprise');
       assert.strictEqual(store.getTenantByCustomerId(customerId).plan, 'enterprise');
+    });
+
+    it('should not add a status history entry for a plan change', async () => {
+      const before = structuredClone(store.getTenantByCustomerId(customerId).statusHistory);
+
+      const res = await patch(customerId, { plan: 'enterprise' });
+      const tenant = await res.json();
+
+      assert.strictEqual(res.status, 200);
+      assert.deepStrictEqual(tenant.statusHistory, before);
+      assert.deepStrictEqual(store.getTenantByCustomerId(customerId).statusHistory, before);
     });
 
     it('should reject an unknown plan with 400', async () => {

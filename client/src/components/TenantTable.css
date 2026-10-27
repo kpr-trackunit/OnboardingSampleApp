@@ -79,3 +79,50 @@
 .tenant-actions .reason-form button {
   margin-right: 0;
 }
+
+.history-toggle {
+  display: block;
+  margin-top: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: #2563eb;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.history-row td {
+  background: #f9fafb;
+  font-size: 0.85rem;
+}
+
+.time-in-status {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.history-empty {
+  margin: 0;
+  color: #6b7280;
+}
+
+.status-timeline {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.history-entry {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 2px 0;
+}
+
+.history-entry time {
+  color: #6b7280;
+}
+
+.history-reason {
+  color: #b91c1c;
+}

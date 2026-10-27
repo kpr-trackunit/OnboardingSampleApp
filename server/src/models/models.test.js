@@ -32,6 +32,13 @@ describe('Domain Models', () => {
     });
   });
 
+  describe('createTenant', () => {
+    it('should start with an empty status history', () => {
+      const tenant = createTenant({ customerId: 'cust_x' });
+      assert.deepStrictEqual(tenant.statusHistory, []);
+    });
+  });
+
   describe('calculateProgress', () => {
     it('should return 0 for empty steps', () => {
       assert.strictEqual(calculateProgress([]), 0);

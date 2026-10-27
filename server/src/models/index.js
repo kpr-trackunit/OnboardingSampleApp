@@ -22,7 +22,16 @@
  * @property {string} plan - 'starter' | 'professional' | 'enterprise'
  * @property {string} region - Data residency; defaults to the customer's region when the tenant is created
  * @property {string|null} failureReason - Why provisioning failed; set while status is 'failed', cleared on Retry
+ * @property {StatusHistoryEntry[]} statusHistory - Every status change, oldest first (plan/region edits are not logged)
  * @property {string} createdAt - ISO timestamp
+ */
+
+/**
+ * @typedef {Object} StatusHistoryEntry
+ * @property {string} at - ISO timestamp of the change
+ * @property {string} from - Status before the change
+ * @property {string} to - Status after the change
+ * @property {string} [reason] - Failure reason; only present when `to` is 'failed'
  */
 
 // Allowed values for Tenant.plan
@@ -135,6 +144,7 @@ function createTenant(data) {
     plan: data.plan || 'starter',
     region: data.region || '',
     failureReason: data.failureReason || null,
+    statusHistory: data.statusHistory || [],
     createdAt: data.createdAt || new Date().toISOString()
   };
 }

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { formatTimeInStatus } from '../statusHistory';
 import './TenantTable.css';
 
 // Next status actions offered per status (mirrors TENANT_STATUS_TRANSITIONS on the server).
@@ -19,7 +20,19 @@ const PLANS = ['starter', 'professional', 'enterprise'];
 // Matches TENANT_REGIONS in server/src/models/index.js
 const REGIONS = ['North America', 'EU', 'UK', 'APAC'];
 
+// Number of header columns; the history sub-row spans them all
+const COLUMN_COUNT = 6;
+
 function TenantTable({ tenants, onStatusChange, busyCustomerId, onPlanChange, onRegionChange }) {
+  // customerIds whose history sub-row is open
+  const [openHistory, setOpenHistory] = useState(() => new Set());
+  const toggleHistory = customerId => setOpenHistory(current => {
+    const next = new Set(current);
+    if (next.has(customerId)) next.delete(customerId);
+    else next.add(customerId);
+    return next;
+  });
+
   return (
     <table className="tenant-table">
       <thead>
@@ -34,13 +47,19 @@ function TenantTable({ tenants, onStatusChange, busyCustomerId, onPlanChange, on
       </thead>
       <tbody>
         {tenants.map(tenant => (
-          <tr key={tenant.id} data-customer-id={tenant.customerId}>
+          <React.Fragment key={tenant.id}>
+          <tr data-customer-id={tenant.customerId}>
             <td>{tenant.customerName}</td>
             <td>
               <StatusBadge status={tenant.status} />
               {tenant.status === 'failed' && tenant.failureReason && (
                 <div className="failure-reason">{tenant.failureReason}</div>
               )}
+              <HistoryToggle
+                tenant={tenant}
+                open={openHistory.has(tenant.customerId)}
+                onToggle={() => toggleHistory(tenant.customerId)}
+              />
             </td>
             <td><PlanSelect tenant={tenant} onPlanChange={onPlanChange} /></td>
             <td><RegionSelect tenant={tenant} onRegionChange={onRegionChange} /></td>
@@ -53,6 +72,8 @@ function TenantTable({ tenants, onStatusChange, busyCustomerId, onPlanChange, on
               />
             </td>
           </tr>
+          {openHistory.has(tenant.customerId) && <HistoryRow tenant={tenant} />}
+          </React.Fragment>
         ))}
       </tbody>
     </table>
@@ -117,6 +138,47 @@ function ReasonForm({ action, busy, onCancel, onSubmit }) {
       <button type="submit" disabled={busy || blank}>{action.label}</button>
       <button type="button" onClick={onCancel} disabled={busy}>Cancel</button>
     </form>
+  );
+}
+
+// Opens/closes the row's status history timeline
+function HistoryToggle({ tenant, open, onToggle }) {
+  return (
+    <button
+      type="button"
+      className="history-toggle"
+      aria-expanded={open}
+      aria-controls={`history-${tenant.id}`}
+      onClick={onToggle}
+    >
+      {open ? 'Hide history' : 'History'}
+    </button>
+  );
+}
+
+// Sub-row under a tenant: how long it has been in its current status, then every
+// status change (oldest first) with its time, and the reason on failed entries
+function HistoryRow({ tenant }) {
+  const history = tenant.statusHistory || [];
+  return (
+    <tr className="history-row" id={`history-${tenant.id}`} data-history-for={tenant.customerId}>
+      <td colSpan={COLUMN_COUNT}>
+        <div className="time-in-status">{formatTimeInStatus(tenant)}</div>
+        {history.length === 0 ? (
+          <p className="history-empty">No status changes yet.</p>
+        ) : (
+          <ol className="status-timeline">
+            {history.map((entry, i) => (
+              <li key={`${entry.at}-${i}`} className="history-entry">
+                <span className="history-transition">{entry.from} → {entry.to}</span>
+                <time dateTime={entry.at}>{new Date(entry.at).toLocaleString()}</time>
+                {entry.reason && <span className="history-reason">{entry.reason}</span>}
+              </li>
+            ))}
+          </ol>
+        )}
+      </td>
+    </tr>
   );
 }
 
