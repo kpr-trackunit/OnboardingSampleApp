@@ -2,8 +2,9 @@ const express = require('express');
 const cors = require('cors');
 const store = require('./data/store');
 const { createCustomer } = require('./models');
-const { buildQueue } = require('./models/queue');
+const { buildQueue, summarise, sortQueue } = require('./models/queue');
 const { ImportError, listImportSources, importEntity, getImported } = require('./import/importer');
+const { requireActiveTenant } = require('./routes/importGuard');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -90,11 +91,17 @@ app.get('/api/customers/:id/onboarding', (req, res) => {
 
 // Onboarding queue (dashboard view): one row per customer
 app.get('/api/onboarding', (req, res) => {
-  res.json(buildQueue(store.getCustomers(), store.getAllOnboardingStates()));
+  res.json(sortQueue(buildQueue(store.getCustomers(), store.getAllOnboardingStates())));
+});
+
+// Onboarding queue summary (dashboard strip): how many customers are in each state
+app.get('/api/onboarding/summary', (req, res) => {
+  res.json(summarise(buildQueue(store.getCustomers(), store.getAllOnboardingStates())));
 });
 
 // Tenant Setup routes (list, and later status/plan/region updates)
 app.use('/api/tenants', require('./routes/tenants'));
+app.use('/api/mappings', require('./routes/mappings'));
 
 // Get tenant by customer ID
 app.get('/api/tenants/:customerId', (req, res) => {
@@ -105,9 +112,13 @@ app.get('/api/tenants/:customerId', (req, res) => {
   res.json(tenant);
 });
 
-// List customer data files waiting to be imported
+// List customer data files waiting to be imported. Always allowed; tenantActive
+// tells the Import tab whether the source's customer may import yet (tenant slice 7).
 app.get('/api/import/sources', (req, res) => {
-  res.json(listImportSources());
+  res.json(listImportSources().map(source => ({
+    ...source,
+    tenantActive: store.isTenantActive(source.customerId)
+  })));
 });
 
 // Sends import errors as JSON with their HTTP status
@@ -119,8 +130,11 @@ function handleImportError(res, err) {
   return res.status(500).json({ error: 'Import failed' });
 }
 
-// Import one entity file (e.g. clients) for a source
-app.post('/api/import/:sourceKey/:entity', (req, res) => {
+// Import every entity file for a source (import slice 8); registered before the per-entity route
+app.use('/api/import', require('./routes/importAll'));
+
+// Import one entity file (e.g. clients) for a source. 409 until the tenant is active.
+app.post('/api/import/:sourceKey/:entity', requireActiveTenant(), (req, res) => {
   try {
     res.json(importEntity(req.params.sourceKey, req.params.entity));
   } catch (err) {
@@ -136,6 +150,11 @@ app.get('/api/import/:sourceKey/:entity', (req, res) => {
     handleImportError(res, err);
   }
 });
+
+// Test-only setup routes for the E2E suite (see routes/testSupport.js)
+if (process.env.ENABLE_TEST_ROUTES === 'true') {
+  app.use('/api/test', require('./routes/testSupport'));
+}
 
 // Start server
 app.listen(PORT, () => {

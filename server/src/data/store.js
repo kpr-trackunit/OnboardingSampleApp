@@ -64,6 +64,8 @@ function seedData() {
   }
   // Added after the customers load so its region is backfilled from the customer
   addTenant(exampleTenant);
+  // Every other customer gets a default tenant, so none is missing from Tenant Setup
+  backfillTenants();
   store.onboardingStates.push(exampleOnboardingState);
 
   // Column/value mappings for the sample customers in sample-data/
@@ -85,6 +87,13 @@ function getSourceCustomerId(sourceKey, label) {
   return sourceCustomers[sourceKey];
 }
 
+// Links an import source to its customer, creating the customer from the source label when
+// none exists yet (import slice 8), so a new source shows in the onboarding queue and Tenant Setup
+function ensureSourceCustomer(sourceKey, label) {
+  const customerId = getSourceCustomerId(sourceKey, label);
+  return getCustomerById(customerId) || addCustomer(createCustomer({ id: customerId, name: label }));
+}
+
 // Initialize with seed data
 seedData();
 
@@ -97,10 +106,24 @@ function getCustomerById(id) {
   return store.customers.find(c => c.id === id);
 }
 
+// Adds a customer and, unless it already has one, its default tenant (pending / starter)
 function addCustomer(customer) {
   customerFiles.save(customer);
   store.customers.push(customer);
+  ensureTenant(customer.id);
   return customer;
+}
+
+// Creates the default tenant for a customer that has none; one tenant per customerId.
+// The id is derived from the customer id, since a timestamp id collides within a backfill
+function ensureTenant(customerId) {
+  return getTenantByCustomerId(customerId)
+    || addTenant(createTenant({ id: `tenant_${customerId}`, customerId }));
+}
+
+// Gives every customer without a tenant its default tenant. Safe to run repeatedly
+function backfillTenants() {
+  store.customers.forEach(customer => ensureTenant(customer.id));
 }
 
 function updateCustomer(id, updates) {
@@ -126,6 +149,11 @@ function getTenantList() {
 
 function getTenantByCustomerId(customerId) {
   return store.tenants.find(t => t.customerId === customerId);
+}
+
+// Import is gated on this (tenant slice 7). A customer without a tenant record is not active.
+function isTenantActive(customerId) {
+  return getTenantByCustomerId(customerId)?.status === 'active';
 }
 
 // Adds a tenant. A tenant without a region gets its customer's region (data residency prefill)
@@ -186,6 +214,22 @@ function updateTenantStatus(customerId, status, reason) {
   }
 
   return { tenant };
+}
+
+const IMPORT_STEP_ID = 'step_4';
+
+/**
+ * Sets onboarding step 4 (Import) to a status and recalculates progressPercent.
+ * A customer without an onboarding state gets the default steps first.
+ * @param {string} customerId
+ * @param {'completed' | 'failed'} status
+ * @returns {object} The updated onboarding state
+ */
+function updateImportStep(customerId, status) {
+  const state = getOnboardingState(customerId)
+    || addOnboardingState({ customerId, steps: createDefaultOnboardingSteps(), progressPercent: 0 });
+  const steps = state.steps.map(step => (step.id === IMPORT_STEP_ID ? { ...step, status } : step));
+  return updateOnboardingState(customerId, { steps, progressPercent: calculateProgress(steps) });
 }
 
 // Merge updates into a customer's tenant. Returns the updated tenant, or null if it has none
@@ -327,14 +371,18 @@ module.exports = {
   getTenants,
   getTenantList,
   getTenantByCustomerId,
+  isTenantActive,
   addTenant,
+  backfillTenants,
   updateTenantStatus,
   updateTenant,
+  updateImportStep,
   getOnboardingState,
   getAllOnboardingStates,
   addOnboardingState,
   updateOnboardingState,
   getSourceCustomerId,
+  ensureSourceCustomer,
   getMappings,
   getMapping,
   saveMapping,

@@ -79,6 +79,13 @@ function getReferences(entity, customerId) {
     }));
 }
 
+// The entities this one references (e.g. transactions -> clients and accounts), from its target fields
+function getDependencies(entity) {
+  return [...new Set(Object.values(getTargetFields(entity) || {})
+    .filter(spec => spec.references)
+    .map(spec => spec.references.entity))];
+}
+
 // Referenced entities with nothing imported yet, each listed once
 function getMissingReferences(references) {
   return [...new Set(references.filter(ref => ref.keys.size === 0).map(ref => ref.entity))];
@@ -266,6 +273,7 @@ function getImported(sourceKey, entity, { dataDir = DEFAULT_DATA_DIR } = {}) {
 
 module.exports = {
   ImportError,
+  getDependencies,
   listImportSources,
   importEntity,
   getImported

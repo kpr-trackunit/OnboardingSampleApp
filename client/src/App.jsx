@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { saveCustomer } from './api';
 import CustomerDetails from './components/CustomerDetails';
 import TenantSetupTab from './components/TenantSetupTab';
+import DataMappingTab from './components/DataMappingTab';
+import SummaryStrip from './components/SummaryStrip';
+import CurrentStepBadge from './components/CurrentStepBadge';
+import AttentionBadge, { attentionCardClass } from './components/AttentionBadge';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -14,9 +18,6 @@ const TABS = [
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [onboardingData, setOnboardingData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [customers, setCustomers] = useState([]);
 
   const loadCustomers = () =>
@@ -25,35 +26,9 @@ function App() {
       .then(setCustomers)
       .catch(err => console.error('Failed to fetch customers:', err));
 
-  const loadOnboarding = () =>
-    fetch('/api/onboarding')
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (!Array.isArray(data)) throw new Error('Invalid response format');
-        return data;
-      })
-      .then(data => {
-        setOnboardingData(data);
-        setError(null);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('Failed to fetch onboarding data:', err);
-        setError(err.message);
-        setOnboardingData([]);
-        setLoading(false);
-      });
-
   useEffect(() => {
     loadCustomers();
   }, []);
-
-  // Re-fetch whenever the Dashboard is shown, so changes made on other tabs
-  // (e.g. a tenant marked active) are reflected
-  useEffect(() => {
-    if (activeTab === 'dashboard') loadOnboarding();
-  }, [activeTab]);
 
   return (
     <div className="app">
@@ -75,16 +50,12 @@ function App() {
       </nav>
 
       <main className="content">
-        {activeTab === 'dashboard' && (
-          <DashboardTab data={onboardingData} loading={loading} error={error} />
-        )}
+        {activeTab === 'dashboard' && <DashboardTab />}
         {activeTab === 'customers' && <CustomerListTab customers={customers} onSaved={loadCustomers} />}
         {activeTab === 'customer-info' && (
           <PlaceholderTab title="Customer Info" description="Collect and validate customer information" />
         )}
-        {activeTab === 'data-mapping' && (
-          <PlaceholderTab title="Data Mapping" description="Map customer data to platform configuration" />
-        )}
+        {activeTab === 'data-mapping' && <DataMappingTab />}
         {activeTab === 'tenant-setup' && (
           <TenantSetupTab />
         )}
@@ -94,7 +65,38 @@ function App() {
   );
 }
 
-function DashboardTab({ data, loading, error }) {
+// DashboardTab owns its fetch. It is unmounted whenever another tab is shown,
+// so it re-fetches each time the Dashboard is opened and reflects work done elsewhere
+function DashboardTab() {
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/onboarding')
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = await res.json();
+        if (!Array.isArray(body)) throw new Error('Invalid response format');
+        return body;
+      })
+      .then(body => {
+        if (cancelled) return;
+        setData(body);
+        setError(null);
+        setLoading(false);
+      })
+      .catch(err => {
+        if (cancelled) return;
+        console.error('Failed to fetch onboarding data:', err);
+        setError(err.message);
+        setData([]);
+        setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
   if (loading) {
     return <div className="placeholder"><p>Loading...</p></div>;
   }
@@ -118,13 +120,21 @@ function DashboardTab({ data, loading, error }) {
       <p style={{ color: '#6b7280', marginBottom: '20px' }}>
         {data.length} customer(s) awaiting onboarding
       </p>
+      <SummaryStrip />
 
       {data.map(item => (
-        <div key={item.customerId} className="customer-card">
-          <h3>{item.customerName}</h3>
+        <div key={item.customerId} className={attentionCardClass(item.needsAttention)}>
+          <h3>{item.customerName}<AttentionBadge needsAttention={item.needsAttention} /></h3>
+          <CurrentStepBadge step={item.currentStep} />
           <div className="customer-meta">
             <span>📍 {item.customerRegion}</span>
             <span>🏭 {item.customerIndustry}</span>
+            {item.openIssueCount > 0 && (
+              <span className="open-issues">{item.openIssueCount} open issue{item.openIssueCount === 1 ? '' : 's'}</span>
+            )}
+            {item.daysWaiting != null && (
+              <span className="days-waiting">⏳ Waiting {item.daysWaiting} {item.daysWaiting === 1 ? 'day' : 'days'}</span>
+            )}
           </div>
 
           <div className="progress-section">
@@ -298,6 +308,7 @@ function ImportTab() {
   const [error, setError] = useState(null);
   const [importing, setImporting] = useState(null);
   const [result, setResult] = useState(null);
+  const [allResult, setAllResult] = useState(null);
 
   function loadSources() {
     return fetch('/api/import/sources')
@@ -335,8 +346,27 @@ function ImportTab() {
       console.error('Import failed:', err);
       setResult({ source, summary: { entity: file.entity }, records: [], error: err.message });
     } finally {
+      setAllResult(null);
       setImporting(null);
       // Importing one entity can unlock another (e.g. contacts once clients are in)
+      loadSources();
+    }
+  }
+
+  // Imports every entity of the source in dependency order and updates its Import step (slice 8)
+  async function runImportAll(source) {
+    setImporting(`${source.sourceKey}-all`);
+    try {
+      const res = await fetch(`/api/import/${source.sourceKey}/all`, { method: 'POST' });
+      const summary = await res.json();
+      if (!res.ok) throw new Error(summary.error || `HTTP ${res.status}`);
+      setAllResult({ source, summary, error: null });
+    } catch (err) {
+      console.error('Import all failed:', err);
+      setAllResult({ source, summary: null, error: err.message });
+    } finally {
+      setResult(null);
+      setImporting(null);
       loadSources();
     }
   }
@@ -378,7 +408,23 @@ function ImportTab() {
         <tbody>
           {sources.map(source => source.files.map((file, index) => (
             <tr key={`${source.sourceKey}-${file.entity}`} data-source={source.sourceKey}>
-              {index === 0 && <td rowSpan={source.files.length} className="source-label">{source.label}</td>}
+              {index === 0 && (
+                <td rowSpan={source.files.length}>
+                  <span className="source-label">{source.label}</span>
+                  <div>
+                    <button
+                      className="button import-all"
+                      disabled={importing !== null || !source.tenantActive}
+                      onClick={() => runImportAll(source)}
+                    >
+                      {importing === `${source.sourceKey}-all` ? 'Importing...' : 'Import all'}
+                    </button>
+                  </div>
+                  {!source.tenantActive && (
+                    <p className="tenant-notice" role="status">Tenant not active yet. Finish Tenant Setup first</p>
+                  )}
+                </td>
+              )}
               <td>{file.entity}</td>
               <td><code>{file.filename}</code></td>
               <td>{file.rowCount} rows</td>
@@ -387,7 +433,7 @@ function ImportTab() {
                   <>
                     <button
                       className="button"
-                      disabled={importing !== null || Boolean(file.waitingFor)}
+                      disabled={importing !== null || !source.tenantActive || Boolean(file.waitingFor)}
                       onClick={() => runImport(source, file)}
                     >
                       {importing === `${source.sourceKey}-${file.entity}` ? 'Importing...' : `Import ${file.entity}`}
@@ -403,7 +449,53 @@ function ImportTab() {
         </tbody>
       </table>
 
+      {allResult && <ImportAllResult {...allResult} />}
       {result && <ImportResult {...result} />}
+    </div>
+  );
+}
+
+// Per-entity summary of an Import all run, and the Import step it set
+function ImportAllResult({ source, summary, error }) {
+  if (error) {
+    return (
+      <div className="import-result import-all-result">
+        <p style={{ color: '#dc2626' }}>⚠️ Failed to import {source.label}: {error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="import-result import-all-result">
+      <h3>{source.label}</h3>
+      <p className="import-step-status">
+        Import step: <span className={`step-status-text ${summary.importStep}`}>{summary.importStep}</span>
+        {' '}({summary.progressPercent}% onboarded)
+      </p>
+      <table className="data-table import-all-summary">
+        <thead>
+          <tr>
+            <th>Entity</th>
+            <th>Status</th>
+            <th>Imported</th>
+            <th>Rejected</th>
+            <th>Warnings</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {summary.entities.map(entity => (
+            <tr key={entity.entity} data-entity={entity.entity} data-status={entity.status}>
+              <td>{entity.entity}</td>
+              <td className="entity-status">{entity.status}</td>
+              <td className="entity-imported">{entity.imported}</td>
+              <td className="entity-rejected">{entity.rejected}</td>
+              <td className="entity-warnings">{entity.warnings}</td>
+              <td className="muted">{entity.message || ''}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

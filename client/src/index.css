@@ -204,6 +204,13 @@ header p {
   font-weight: 500;
 }
 
+/* Import is blocked until the source's tenant is active (tenant slice 7) */
+.tenant-notice {
+  margin: 4px 0 0;
+  color: #b45309;
+  font-size: 0.8rem;
+}
+
 .button {
   padding: 6px 14px;
   border: none;
@@ -244,6 +251,29 @@ header p {
 }
 
 .import-summary.has-errors {
+  color: #dc2626;
+}
+
+/* Import all (import slice 8): one button per source and a per-entity summary */
+.button.import-all {
+  margin-top: 8px;
+}
+
+.import-step-status {
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.step-status-text.completed {
+  color: #059669;
+}
+
+.step-status-text.failed {
+  color: #dc2626;
+}
+
+.import-all-summary tr[data-status="failed"] .entity-status,
+.import-all-summary tr[data-status="skipped"] .entity-status {
   color: #dc2626;
 }
 
