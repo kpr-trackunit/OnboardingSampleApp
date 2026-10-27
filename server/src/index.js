@@ -86,6 +86,8 @@ app.put('/api/customers/:id', (req, res) => {
   if (!customer) {
     return res.status(404).json({ error: 'Customer not found' });
   }
+  // Customer Info step (step 1) follows the saved fields
+  store.syncCustomerInfoStep(customer.id);
   res.json(customer);
 });
 

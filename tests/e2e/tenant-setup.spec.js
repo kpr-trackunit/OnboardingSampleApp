@@ -46,7 +46,11 @@ test.describe('Tenant Setup', () => {
     }
   });
 
-  test('Start then Mark active completes the Tenant Setup step on the Dashboard', async ({ page }) => {
+  test('Start then Mark active completes the Tenant Setup step on the Dashboard', async ({ page, request }) => {
+    // Other steps (e.g. Customer Info) may already be done, so start from the API
+    const queue = await (await request.get('/api/onboarding')).json();
+    const startPercent = queue.find(q => q.customerId === 'cust_001').progressPercent;
+
     await page.goto('/');
     await page.getByRole('button', { name: 'Tenant Setup' }).click();
 
@@ -65,7 +69,7 @@ test.describe('Tenant Setup', () => {
     await expect(row.locator('.status-badge')).toHaveText('active');
     await expect(row.getByRole('button')).toHaveCount(0);
 
-    // Dashboard re-fetches on tab switch: step 3 completed, 1 of 4 steps = 25%
+    // Dashboard re-fetches on tab switch: step 3 completed adds 1 of 4 steps (25%)
     await page.getByRole('button', { name: 'Dashboard' }).click();
     const card = page.locator('.customer-card', {
       has: page.getByRole('heading', { name: customerName, exact: true })
@@ -73,6 +77,6 @@ test.describe('Tenant Setup', () => {
     const tenantStep = card.locator('.checklist li', { hasText: 'Tenant Setup' });
     await expect(tenantStep).toContainText('completed');
     await expect(tenantStep.locator('.step-status')).toHaveClass(/completed/);
-    await expect(card.locator('.progress-bar')).toHaveText('25%');
+    await expect(card.locator('.progress-bar')).toHaveText(`${startPercent + 25}%`);
   });
 });

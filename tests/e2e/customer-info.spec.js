@@ -165,4 +165,57 @@ test.describe('Customer Info', () => {
     await expect(row.getByRole('alert')).toContainText('Disk is full');
     await expect(row.getByLabel('Industry')).toHaveValue('Will fail');
   });
+
+  test('completing a customer\'s info completes its Customer Info step on the Dashboard', async ({ page, request }) => {
+    // Premier Bookkeeping is seeded missing only its contact email
+    const customers = await (await request.get('/api/customers')).json();
+    const premier = customers.find(c => c.name === 'Premier Bookkeeping');
+    expect(premier, 'Premier Bookkeeping should exist').toBeTruthy();
+    expect(premier.missingInfo).toEqual(['contactEmail']);
+
+    const queue = await (await request.get('/api/onboarding')).json();
+    const before = queue.find(q => q.customerId === premier.id);
+    expect(before.steps.find(s => s.id === 'step_1').status).toBe('in_progress');
+    // The bar is blank at 0%
+    const barText = percent => (percent > 0 ? `${percent}%` : '');
+
+    const row = page.locator(`.customer-info-table tbody tr[data-customer-id="${premier.id}"]`);
+    const card = page.locator('.customer-card', {
+      has: page.getByRole('heading', { name: premier.name, exact: true })
+    });
+    const infoStep = card.locator('.checklist li', { hasText: 'Customer Info' });
+
+    const saveEmail = async (email) => {
+      await row.getByRole('button', { name: 'Edit' }).click();
+      await row.getByLabel('Contact email').fill(email);
+      const saved = page.waitForResponse(r =>
+        r.url().endsWith(`/api/customers/${premier.id}`) && r.request().method() === 'PUT');
+      await row.getByRole('button', { name: 'Save' }).click();
+      expect((await saved).ok()).toBeTruthy();
+      await expect(row.getByRole('button', { name: 'Edit' })).toBeVisible();
+    };
+
+    try {
+      await openCustomerInfo(page);
+      await saveEmail('onboarding@premier.example.com');
+      await expect(row.locator('.completeness-badge')).toHaveText('Complete');
+
+      // Dashboard re-fetches on tab switch: step 1 completed, progress up one step
+      await page.getByRole('button', { name: 'Dashboard' }).click();
+      await expect(infoStep).toContainText('completed');
+      await expect(infoStep.locator('.step-status')).toHaveClass(/completed/);
+      await expect(card.locator('.progress-bar')).toHaveText(barText(before.progressPercent + 25));
+
+      // Clearing the field again puts the step back to in progress
+      await page.getByRole('button', { name: 'Customer Info' }).click();
+      await saveEmail('');
+      await page.getByRole('button', { name: 'Dashboard' }).click();
+      await expect(infoStep).toContainText('in progress');
+      await expect(infoStep.locator('.step-status')).toHaveClass(/in_progress/);
+      await expect(card.locator('.progress-bar')).toHaveText(barText(before.progressPercent));
+    } finally {
+      // Put the shared customer back as seeded
+      await request.put(`/api/customers/${premier.id}`, { data: { contactEmail: '' } });
+    }
+  });
 });

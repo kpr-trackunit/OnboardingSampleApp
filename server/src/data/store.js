@@ -12,6 +12,7 @@ const {
   canTransitionTenant,
   TENANT_STATUS_TO_STEP_STATUS
 } = require('../models');
+const { customerInfoStepStatus } = require('../models/customerInfo');
 const customerFiles = require('./customerFiles');
 const { seedMappings } = require('./mappingSeeds');
 
@@ -23,6 +24,9 @@ const store = {
   mappings: [],
   clients: []
 };
+
+// Declared before seedData() runs, since seeding syncs step 1
+const CUSTOMER_INFO_STEP_ID = 'step_1';
 
 // Seed with example data
 function seedData() {
@@ -60,6 +64,9 @@ function seedData() {
   }
   store.tenants.push(exampleTenant);
   store.onboardingStates.push(exampleOnboardingState);
+  // Onboarding states live in memory but customer info is persisted, so derive
+  // step 1 from the loaded customers (otherwise a restart would reset it)
+  store.customers.forEach(customer => syncCustomerInfoStep(customer.id));
 
   // Column/value mappings for the sample customers in sample-data/
   store.mappings.push(...seedMappings().map(({ sourceKey, label, ...mapping }) =>
@@ -95,6 +102,7 @@ function getCustomerById(id) {
 function addCustomer(customer) {
   customerFiles.save(customer);
   store.customers.push(customer);
+  syncCustomerInfoStep(customer.id);
   return customer;
 }
 
@@ -165,6 +173,28 @@ function updateTenantStatus(customerId, status) {
   return { tenant };
 }
 
+/**
+ * Sets onboarding step 1 (Customer Info) from the customer's required info
+ * (see customerInfoStepStatus) and recalculates progressPercent. A customer
+ * without an onboarding state gets the default one first (Clarify 1).
+ * @returns {object | null} The updated onboarding state, or null for an unknown customer
+ */
+function syncCustomerInfoStep(customerId) {
+  const customer = getCustomerById(customerId);
+  if (!customer) return null;
+
+  const state = getOnboardingState(customerId) || addOnboardingState({
+    customerId,
+    steps: createDefaultOnboardingSteps(),
+    progressPercent: 0
+  });
+  const status = customerInfoStepStatus(customer);
+  const steps = state.steps.map(step =>
+    step.id === CUSTOMER_INFO_STEP_ID ? { ...step, status } : step
+  );
+  return updateOnboardingState(customerId, { steps, progressPercent: calculateProgress(steps) });
+}
+
 // Merge updates into a customer's tenant. Returns the updated tenant, or null if it has none
 function updateTenant(customerId, updates) {
   const index = store.tenants.findIndex(t => t.customerId === customerId);
@@ -233,6 +263,7 @@ module.exports = {
   getTenantByCustomerId,
   addTenant,
   updateTenantStatus,
+  syncCustomerInfoStep,
   updateTenant,
   getOnboardingState,
   getAllOnboardingStates,

@@ -128,19 +128,23 @@ describe('Tenant routes', () => {
     it('recalculates progressPercent through Start then Mark active', async () => {
       forceStatus('pending');
 
+      // Step 1 may already be completed (it follows the customer's info), so
+      // measure progress from where this test starts
+      const start = store.getOnboardingState(customerId).progressPercent;
+
       await patchStatus('provisioning');
       // in_progress does not count as completed
       assert.strictEqual(
         store.getOnboardingState(customerId).progressPercent,
         calculateProgress(store.getOnboardingState(customerId).steps)
       );
-      assert.strictEqual(store.getOnboardingState(customerId).progressPercent, 0);
+      assert.strictEqual(store.getOnboardingState(customerId).progressPercent, start);
 
       await patchStatus('active');
       const state = store.getOnboardingState(customerId);
-      // Seed has all 4 steps pending, so completing step 3 is 1 of 4
+      // Completing step 3 adds 1 of 4 steps
       assert.strictEqual(state.progressPercent, calculateProgress(state.steps));
-      assert.strictEqual(state.progressPercent, 25);
+      assert.strictEqual(state.progressPercent, start + 25);
     });
 
     it('does not touch onboarding state on a rejected transition', async () => {

@@ -106,6 +106,17 @@ describe('PUT /api/customers/:id (Customer Info fields)', () => {
     assert.deepStrictEqual(store.getCustomerById(id), before);
   });
 
+  it('syncs the Customer Info step after saving', async () => {
+    const id = 'cust_004';
+    const step1 = () => store.getOnboardingState(id).steps.find(s => s.id === 'step_1').status;
+
+    await put(id, { industry: 'Bookkeeping', region: 'UK', contactEmail: 'ops@premier.example.com' });
+    assert.strictEqual(step1(), 'completed');
+
+    await put(id, { contactEmail: '' });
+    assert.strictEqual(step1(), 'in_progress');
+  });
+
   it('returns 404 for an unknown customer', async () => {
     const res = await put('cust_nope', { industry: 'Retail' });
     assert.strictEqual(res.status, 404);
