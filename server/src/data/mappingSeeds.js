@@ -44,6 +44,77 @@ function seedMappings() {
       dateFormat: 'MM/DD/YYYY',
       dateFormatDetected: 'detected',
       updatedAt: SEED_TIMESTAMP
+    },
+    {
+      sourceKey: 'xyz-financial-services',
+      label: 'XYZ Financial Services',
+      entity: 'clients',
+      columns: {
+        sourceId: 'clientCode',
+        name: 'companyName',
+        entityType: 'entityType',
+        status: 'clientStatus',
+        startDate: 'startDate',
+        taxId: 'federalTaxId',
+        annualRevenue: 'yearlyRevenue',
+        industry: 'sectorCode',
+        paymentTerms: 'billingTerms'
+      },
+      values: {
+        entityType: {
+          map: {
+            'CORP': 'company',
+            'SCORP': 'company',
+            'LLC': 'llc_llp',
+            'PART': 'partnership',
+            'SOLE': 'sole_trader',
+            'NPROF': 'non_profit'
+          },
+          default: 'company'
+        },
+        status: {
+          map: { 'A': 'active', 'I': 'inactive', 'P': 'pending' },
+          default: 'pending'
+        }
+      },
+      dateFormat: 'YYYY-MM-DD',
+      dateFormatDetected: 'detected',
+      updatedAt: SEED_TIMESTAMP
+    },
+    {
+      sourceKey: 'premier-bookkeeping',
+      label: 'Premier Bookkeeping',
+      entity: 'clients',
+      columns: {
+        sourceId: 'customer_id',
+        name: 'business_name',
+        entityType: 'legal_structure',
+        status: 'account_status',
+        startDate: 'registration_date',
+        taxId: 'tax_reference',
+        annualRevenue: 'gross_revenue',
+        industry: 'industry_sector',
+        paymentTerms: 'credit_terms'
+      },
+      values: {
+        entityType: {
+          map: {
+            'Limited Company': 'company',
+            'LLP': 'llc_llp',
+            'Partnership': 'partnership',
+            'Sole Trader': 'sole_trader'
+          },
+          default: 'company'
+        },
+        status: {
+          // Per sample-data/README.md: DORMANT is inactive, SUSPENDED is pending
+          map: { 'ACTIVE': 'active', 'DORMANT': 'inactive', 'SUSPENDED': 'pending' },
+          default: 'pending'
+        }
+      },
+      dateFormat: 'DD-MM-YYYY',
+      dateFormatDetected: 'detected',
+      updatedAt: SEED_TIMESTAMP
     }
   ];
 }

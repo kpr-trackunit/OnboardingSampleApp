@@ -20,11 +20,17 @@
  * @property {string} customerId - Associated customer ID
  * @property {string} status - 'pending' | 'provisioning' | 'active' | 'failed'
  * @property {string} plan - 'starter' | 'professional' | 'enterprise'
+ * @property {string} region - Data residency; defaults to the customer's region when the tenant is created
+ * @property {string|null} failureReason - Why provisioning failed; set while status is 'failed', cleared on Retry
  * @property {string} createdAt - ISO timestamp
  */
 
 // Allowed values for Tenant.plan
 const TENANT_PLANS = ['starter', 'professional', 'enterprise'];
+
+// Regions a tenant can be hosted in (data residency). Proposed list from
+// tickets/tenant-setup.md open question 1, pending confirmation.
+const TENANT_REGIONS = ['North America', 'EU', 'UK', 'APAC'];
 
 /**
  * @typedef {Object} OnboardingStep
@@ -77,6 +83,28 @@ const TENANT_PLANS = ['starter', 'professional', 'enterprise'];
  */
 
 /**
+ * @typedef {Object} ImportIssue
+ * @property {number} row - Line number in the source file (the header is line 1)
+ * @property {string|null} field - Canonical field, or null for whole-row problems
+ * @property {string|null} column - Source column
+ * @property {string} value - Source value
+ * @property {string} message - Readable reason, prefixed with the row
+ * @property {string} [default] - Warnings only: the default value that was used
+ */
+
+/**
+ * @typedef {Object} ImportRun
+ * @property {string} id - Unique run identifier
+ * @property {string} customerId - Associated customer ID
+ * @property {string} entity - 'clients' | 'contacts' | 'accounts' | 'transactions'
+ * @property {string} startedAt - ISO timestamp
+ * @property {number} imported - Rows saved
+ * @property {number} rejected - Rows skipped because of errors
+ * @property {ImportIssue[]} warnings - Rows imported with a default value
+ * @property {ImportIssue[]} errors - Why each rejected row was skipped
+ */
+
+/**
  * Creates a new Customer object
  * @param {Partial<Customer>} data 
  * @returns {Customer}
@@ -105,6 +133,8 @@ function createTenant(data) {
     customerId: data.customerId || '',
     status: data.status || 'pending',
     plan: data.plan || 'starter',
+    region: data.region || '',
+    failureReason: data.failureReason || null,
     createdAt: data.createdAt || new Date().toISOString()
   };
 }
@@ -207,8 +237,28 @@ function createMapping(data) {
   };
 }
 
+/**
+ * Creates a new ImportRun object
+ * @param {Partial<ImportRun>} data
+ * @returns {ImportRun}
+ */
+function createImportRun(data) {
+  const startedAt = data.startedAt || new Date().toISOString();
+  return {
+    id: data.id || `run_${data.customerId}_${data.entity}_${Date.now()}`,
+    customerId: data.customerId || '',
+    entity: data.entity || '',
+    startedAt,
+    imported: data.imported || 0,
+    rejected: data.rejected || 0,
+    warnings: data.warnings || [],
+    errors: data.errors || []
+  };
+}
+
 module.exports = {
   TENANT_PLANS,
+  TENANT_REGIONS,
   createCustomer,
   createTenant,
   createDefaultOnboardingSteps,
@@ -217,5 +267,6 @@ module.exports = {
   TENANT_STATUS_TO_STEP_STATUS,
   canTransitionTenant,
   createClient,
-  createMapping
+  createMapping,
+  createImportRun
 };
