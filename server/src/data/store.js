@@ -62,6 +62,8 @@ function seedData() {
   }
   // Added after the customers load so its region is backfilled from the customer
   addTenant(exampleTenant);
+  // Every other customer gets a default tenant, so none is missing from Tenant Setup
+  backfillTenants();
   store.onboardingStates.push(exampleOnboardingState);
 
   // Column/value mappings for the sample customers in sample-data/
@@ -95,10 +97,24 @@ function getCustomerById(id) {
   return store.customers.find(c => c.id === id);
 }
 
+// Adds a customer and, unless it already has one, its default tenant (pending / starter)
 function addCustomer(customer) {
   customerFiles.save(customer);
   store.customers.push(customer);
+  ensureTenant(customer.id);
   return customer;
+}
+
+// Creates the default tenant for a customer that has none; one tenant per customerId.
+// The id is derived from the customer id, since a timestamp id collides within a backfill
+function ensureTenant(customerId) {
+  return getTenantByCustomerId(customerId)
+    || addTenant(createTenant({ id: `tenant_${customerId}`, customerId }));
+}
+
+// Gives every customer without a tenant its default tenant. Safe to run repeatedly
+function backfillTenants() {
+  store.customers.forEach(customer => ensureTenant(customer.id));
 }
 
 function updateCustomer(id, updates) {
@@ -126,6 +142,11 @@ function getTenantByCustomerId(customerId) {
   return store.tenants.find(t => t.customerId === customerId);
 }
 
+// Import is gated on this (tenant slice 7). A customer without a tenant record is not active.
+function isTenantActive(customerId) {
+  return getTenantByCustomerId(customerId)?.status === 'active';
+}
+
 // Adds a tenant. A tenant without a region gets its customer's region (data residency prefill)
 function addTenant(tenant) {
   const customer = getCustomerById(tenant.customerId);
@@ -139,9 +160,14 @@ const TENANT_SETUP_STEP_ID = 'step_3';
 /**
  * Moves a customer's tenant to a new status, enforcing the transition table,
  * and mirrors it onto onboarding step 3 (recalculating progressPercent).
- * @returns {{ tenant: object } | { error: string, code: 'not_found' | 'invalid_transition' }}
+ * Moving to 'failed' requires a non-empty reason, stored as failureReason;
+ * every other move (e.g. Retry: failed -> provisioning) clears it.
+ * @param {string} customerId
+ * @param {string} status
+ * @param {string} [reason] - Required when status is 'failed'
+ * @returns {{ tenant: object } | { error: string, code: 'not_found' | 'invalid_transition' | 'reason_required' }}
  */
-function updateTenantStatus(customerId, status) {
+function updateTenantStatus(customerId, status, reason) {
   const index = store.tenants.findIndex(t => t.customerId === customerId);
   if (index === -1) {
     return { error: 'Tenant not found', code: 'not_found' };
@@ -155,7 +181,17 @@ function updateTenantStatus(customerId, status) {
     };
   }
 
-  const tenant = { ...current, status };
+  const failureReason = typeof reason === 'string' ? reason.trim() : '';
+  if (status === 'failed' && !failureReason) {
+    return { error: 'A reason is required to mark a tenant failed', code: 'reason_required' };
+  }
+
+  const tenant = {
+    ...current,
+    status,
+    failureReason: status === 'failed' ? failureReason : null
+  };
+  // Slice 8 (status history): append { at, from: current.status, to: status, reason? } to tenant.statusHistory here
   store.tenants[index] = tenant;
 
   const state = getOnboardingState(customerId);
@@ -271,7 +307,9 @@ module.exports = {
   getTenants,
   getTenantList,
   getTenantByCustomerId,
+  isTenantActive,
   addTenant,
+  backfillTenants,
   updateTenantStatus,
   updateTenant,
   getOnboardingState,

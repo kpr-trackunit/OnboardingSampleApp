@@ -1,13 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './TenantTable.css';
 
 // Next status actions offered per status (mirrors TENANT_STATUS_TRANSITIONS on the server).
-// provisioning -> failed exists on the server but its UI (with a reason) comes in slice 3.
+// needsReason: the action asks for a failure reason before it is sent.
 const STATUS_ACTIONS = {
   pending: [{ label: 'Start', to: 'provisioning' }],
-  provisioning: [{ label: 'Mark active', to: 'active' }],
+  provisioning: [
+    { label: 'Mark active', to: 'active' },
+    { label: 'Mark failed', to: 'failed', needsReason: true }
+  ],
   active: [],
-  failed: []
+  failed: [{ label: 'Retry', to: 'provisioning' }]
 };
 
 // Matches TENANT_PLANS in server/src/models/index.js
@@ -33,7 +36,12 @@ function TenantTable({ tenants, onStatusChange, busyCustomerId, onPlanChange, on
         {tenants.map(tenant => (
           <tr key={tenant.id} data-customer-id={tenant.customerId}>
             <td>{tenant.customerName}</td>
-            <td><StatusBadge status={tenant.status} /></td>
+            <td>
+              <StatusBadge status={tenant.status} />
+              {tenant.status === 'failed' && tenant.failureReason && (
+                <div className="failure-reason">{tenant.failureReason}</div>
+              )}
+            </td>
             <td><PlanSelect tenant={tenant} onPlanChange={onPlanChange} /></td>
             <td><RegionSelect tenant={tenant} onRegionChange={onRegionChange} /></td>
             <td>{new Date(tenant.createdAt).toLocaleDateString()}</td>
@@ -51,18 +59,65 @@ function TenantTable({ tenants, onStatusChange, busyCustomerId, onPlanChange, on
   );
 }
 
-// Only the valid next action(s) for the tenant's current status are shown
+// Only the valid next action(s) for the tenant's current status are shown.
+// An action that needs a reason opens an inline form instead of firing straight away.
 function StatusActions({ tenant, onStatusChange, busy }) {
+  const [reasonAction, setReasonAction] = useState(null);
   const actions = STATUS_ACTIONS[tenant.status] || [];
+
+  if (reasonAction && actions.includes(reasonAction)) {
+    return (
+      <ReasonForm
+        action={reasonAction}
+        busy={busy}
+        onCancel={() => setReasonAction(null)}
+        onSubmit={async reason => {
+          if (await onStatusChange(tenant.customerId, reasonAction.to, reason)) {
+            setReasonAction(null);
+          }
+        }}
+      />
+    );
+  }
+
   return actions.map(action => (
     <button
       key={action.to}
       disabled={busy}
-      onClick={() => onStatusChange(tenant.customerId, action.to)}
+      onClick={() =>
+        action.needsReason ? setReasonAction(action) : onStatusChange(tenant.customerId, action.to)
+      }
     >
       {action.label}
     </button>
   ));
+}
+
+// Inline reason prompt; it can't be submitted while the reason is blank
+function ReasonForm({ action, busy, onCancel, onSubmit }) {
+  const [reason, setReason] = useState('');
+  const blank = reason.trim() === '';
+
+  return (
+    <form
+      className="reason-form"
+      onSubmit={e => {
+        e.preventDefault();
+        if (!blank) onSubmit(reason.trim());
+      }}
+    >
+      <input
+        type="text"
+        aria-label="Failure reason"
+        placeholder="Why did it fail?"
+        value={reason}
+        onChange={e => setReason(e.target.value)}
+        autoFocus
+      />
+      <button type="submit" disabled={busy || blank}>{action.label}</button>
+      <button type="button" onClick={onCancel} disabled={busy}>Cancel</button>
+    </form>
+  );
 }
 
 // Colour comes from the status class: pending | provisioning | active | failed

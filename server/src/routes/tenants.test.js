@@ -31,9 +31,18 @@ describe('Tenant routes', () => {
 
       assert.strictEqual(res.status, 200);
       assert.ok(Array.isArray(tenants));
-      assert.strictEqual(tenants.length, 1);
+      // Every customer gets a tenant (seeded or backfilled at startup), exactly one each
+      const customers = store.getCustomers();
+      assert.strictEqual(tenants.length, customers.length);
+      assert.deepStrictEqual(
+        tenants.map(t => t.customerId).sort(),
+        customers.map(c => c.id).sort()
+      );
+      for (const tenant of tenants) {
+        assert.strictEqual(tenant.customerName, store.getCustomerById(tenant.customerId).name);
+      }
 
-      const [acme] = tenants;
+      const acme = tenants.find(t => t.customerId === 'cust_001');
       assert.strictEqual(acme.customerId, 'cust_001');
       // Customer names come from customers/*.md, so compare against the store
       assert.strictEqual(acme.customerName, store.getCustomerById('cust_001').name);
@@ -44,7 +53,7 @@ describe('Tenant routes', () => {
 
     it('should prefill the seeded tenant region from its customer', async () => {
       const res = await fetch(`${baseUrl}/api/tenants`);
-      const [tenant] = await res.json();
+      const tenant = (await res.json()).find(t => t.customerId === 'cust_001');
 
       assert.ok(tenant.region);
       assert.strictEqual(tenant.region, store.getCustomerById(tenant.customerId).region);
@@ -63,22 +72,26 @@ describe('Tenant routes', () => {
     });
 
     afterEach(() => {
-      forceStatus(originalTenant.status);
+      forceStatus(originalTenant.status, originalTenant.failureReason);
       store.updateOnboardingState(customerId, structuredClone(originalState));
     });
 
     // Put the tenant straight into a status, bypassing the transition table
-    function forceStatus(status) {
-      store.getTenantByCustomerId(customerId).status = status;
+    function forceStatus(status, failureReason = null) {
+      Object.assign(store.getTenantByCustomerId(customerId), { status, failureReason });
     }
 
-    function patchStatus(status, id = customerId) {
+    function patchStatus(status, id = customerId, reason) {
       return fetch(`${baseUrl}/api/tenants/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status, reason })
       });
     }
+
+    // Moving to failed needs a reason; other moves ignore it
+    const REASON = 'Region not available for enterprise plan';
+    const reasonFor = to => (to === 'failed' ? REASON : undefined);
 
     const STATUSES = ['pending', 'provisioning', 'active', 'failed'];
     const VALID = new Set([
@@ -93,7 +106,7 @@ describe('Tenant routes', () => {
         const valid = VALID.has(`${from}->${to}`);
         it(`${valid ? 'allows' : 'rejects with 409'} ${from} -> ${to}`, async () => {
           forceStatus(from);
-          const res = await patchStatus(to);
+          const res = await patchStatus(to, customerId, reasonFor(to));
           const body = await res.json();
 
           if (valid) {
@@ -119,7 +132,7 @@ describe('Tenant routes', () => {
     for (const { from, to, step } of STEP_MIRROR) {
       it(`mirrors ${to} onto onboarding step 3 as ${step}`, async () => {
         forceStatus(from);
-        const res = await patchStatus(to);
+        const res = await patchStatus(to, customerId, reasonFor(to));
         assert.strictEqual(res.status, 200);
 
         const state = store.getOnboardingState(customerId);
@@ -169,6 +182,69 @@ describe('Tenant routes', () => {
     it('returns 404 for a customer without a tenant', async () => {
       const res = await patchStatus('provisioning', 'cust_missing');
       assert.strictEqual(res.status, 404);
+    });
+
+    describe('failure reason', () => {
+      for (const reason of [undefined, '', '   ']) {
+        it(`rejects Mark failed with 400 when the reason is ${JSON.stringify(reason)}`, async () => {
+          forceStatus('provisioning');
+          const res = await patchStatus('failed', customerId, reason);
+          assert.strictEqual(res.status, 400);
+          assert.match((await res.json()).error, /reason is required/);
+
+          // Nothing changes: still provisioning, no reason, step 3 untouched
+          const tenant = store.getTenantByCustomerId(customerId);
+          assert.strictEqual(tenant.status, 'provisioning');
+          assert.strictEqual(tenant.failureReason, null);
+          assert.deepStrictEqual(store.getOnboardingState(customerId), originalState);
+        });
+      }
+
+      it('rejects a non-string reason with 400', async () => {
+        forceStatus('provisioning');
+        const res = await patchStatus('failed', customerId, 42);
+        assert.strictEqual(res.status, 400);
+        assert.strictEqual(store.getTenantByCustomerId(customerId).status, 'provisioning');
+      });
+
+      it('stores the (trimmed) reason and mirrors failed onto step 3', async () => {
+        forceStatus('provisioning');
+        const res = await patchStatus('failed', customerId, `  ${REASON}  `);
+        const body = await res.json();
+
+        assert.strictEqual(res.status, 200);
+        assert.strictEqual(body.status, 'failed');
+        assert.strictEqual(body.failureReason, REASON);
+        assert.strictEqual(store.getTenantByCustomerId(customerId).failureReason, REASON);
+
+        // GET /api/tenants returns it too, so the row can show it after a reload
+        const list = await (await fetch(`${baseUrl}/api/tenants`)).json();
+        assert.strictEqual(list.find(t => t.customerId === customerId).failureReason, REASON);
+
+        const tenantStep = store.getOnboardingState(customerId).steps.find(s => s.id === 'step_3');
+        assert.strictEqual(tenantStep.status, 'failed');
+      });
+
+      it('Retry (failed -> provisioning) clears the reason', async () => {
+        forceStatus('provisioning');
+        await patchStatus('failed', customerId, REASON);
+
+        const res = await patchStatus('provisioning');
+        const body = await res.json();
+
+        assert.strictEqual(res.status, 200);
+        assert.strictEqual(body.status, 'provisioning');
+        assert.strictEqual(body.failureReason, null);
+        assert.strictEqual(store.getTenantByCustomerId(customerId).failureReason, null);
+        const tenantStep = store.getOnboardingState(customerId).steps.find(s => s.id === 'step_3');
+        assert.strictEqual(tenantStep.status, 'in_progress');
+      });
+
+      it('checks the transition before the reason (409 for pending -> failed)', async () => {
+        forceStatus('pending');
+        const res = await patchStatus('failed');
+        assert.strictEqual(res.status, 409);
+      });
     });
   });
 
