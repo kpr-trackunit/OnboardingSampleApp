@@ -20,6 +20,7 @@
  * @property {string} customerId - Associated customer ID
  * @property {string} status - 'pending' | 'provisioning' | 'active' | 'failed'
  * @property {string} plan - 'starter' | 'professional' | 'enterprise'
+ * @property {string|null} failureReason - Why provisioning failed; set while status is 'failed', cleared on Retry
  * @property {string} createdAt - ISO timestamp
  */
 
@@ -105,6 +106,7 @@ function createTenant(data) {
     customerId: data.customerId || '',
     status: data.status || 'pending',
     plan: data.plan || 'starter',
+    failureReason: data.failureReason || null,
     createdAt: data.createdAt || new Date().toISOString()
   };
 }
