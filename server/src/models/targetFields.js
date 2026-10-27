@@ -45,6 +45,19 @@ const TARGET_FIELDS = {
     phone: { type: 'text' },
     role: { type: 'text' },
     active: { type: 'picklist', values: [true, false] }
+  },
+  transactions: {
+    sourceId: { type: 'text', required: true },
+    date: { type: 'date', required: true },
+    clientSourceId: { type: 'text', required: true, references: { entity: 'clients', key: 'sourceId', label: 'client' } },
+    // A string, compared as written: '0010' and '10' are different accounts
+    accountCode: { type: 'text', required: true, references: { entity: 'accounts', key: 'code', label: 'account' } },
+    description: { type: 'text' },
+    direction: { type: 'picklist', required: true, strict: true, values: ['debit', 'credit'] },
+    amount: { type: 'number', required: true },
+    status: { type: 'picklist', values: ['completed', 'pending', 'cancelled'] },
+    paymentMethod: { type: 'picklist', values: ['wire', 'bank_transfer', 'ach', 'check', 'card', 'cash'] },
+    reference: { type: 'text' }
   }
 };
 

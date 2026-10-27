@@ -7,7 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const store = require('../data/store');
-const { createClient, createContact, createImportRun, createAccount } = require('../models');
+const { createClient, createContact, createImportRun, createAccount, createTransaction } = require('../models');
 const { DEFAULT_DATA_DIR, listSources, getSource } = require('./sources');
 const { parseCsv } = require('./csv');
 const { transformRow } = require('./transform');
@@ -16,24 +16,24 @@ const { detectDateFormat } = require('./normalizers');
 const { getTargetFields, getKeyField } = require('../models/targetFields');
 const { checkParents } = require('./hierarchy');
 
-// Contacts are listed with the name of the client they belong to, next to its sourceId
-function listContacts(customerId) {
+// Contacts and transactions are listed with the name of the client they belong to, next to its sourceId
+const withClientName = getRecords => customerId => {
   const clientNames = new Map(store.getClients(customerId).map(c => [c.sourceId, c.name]));
-  return store.getContacts(customerId).map(({ id, sourceId, clientSourceId, ...rest }) => ({
+  return getRecords(customerId).map(({ id, sourceId, clientSourceId, ...rest }) => ({
     id,
     sourceId,
     clientSourceId,
     clientName: clientNames.get(clientSourceId) || null,
     ...rest
   }));
-}
+};
 
-// How each entity is created and stored. An optional checkFile(accepted, all, mapping)
-// runs once every row is transformed, for rules that span rows; it returns
-// { accepted, errors } where each error carries the row's line.
+// How each entity is created and stored. create(record, mapping) builds the stored record.
+// An optional checkFile(accepted, all, mapping) runs once every row is transformed, for
+// rules that span rows; it returns { accepted, errors } where each error carries the row's line.
 const ENTITIES = {
   clients: { create: createClient, save: store.saveClients, list: store.getClients },
-  contacts: { create: createContact, save: store.saveContacts, list: listContacts }
+  contacts: { create: createContact, save: store.saveContacts, list: withClientName(store.getContacts) }
 };
 
 ENTITIES.accounts = {
@@ -45,6 +45,13 @@ ENTITIES.accounts = {
     parentField: 'parentCode',
     parentColumn: mapping.columns.parentCode || null
   })
+};
+
+// Amounts are stored in the source's currency, which comes from its transactions mapping
+ENTITIES.transactions = {
+  create: (record, mapping) => createTransaction({ ...record, currency: mapping.currency }),
+  save: store.saveTransactions,
+  list: withClientName(store.getTransactions)
 };
 
 let runCount = 0;
@@ -72,10 +79,15 @@ function getReferences(entity, customerId) {
     }));
 }
 
-// The first entity that must be imported before this one, or null when nothing is missing
+// Referenced entities with nothing imported yet, each listed once
+function getMissingReferences(references) {
+  return [...new Set(references.filter(ref => ref.keys.size === 0).map(ref => ref.entity))];
+}
+
+// The entities that must be imported before this one (e.g. 'clients and accounts'), or null
 function getWaitingFor(entity, customerId) {
-  const missing = getReferences(entity, customerId).find(ref => ref.keys.size === 0);
-  return missing ? missing.entity : null;
+  const missing = getMissingReferences(getReferences(entity, customerId));
+  return missing.length > 0 ? missing.join(' and ') : null;
 }
 
 // Adds the customer the source belongs to
@@ -146,8 +158,8 @@ function importEntity(sourceKey, entity, { dataDir = DEFAULT_DATA_DIR } = {}) {
   if (!storedMapping) throw new ImportError(`No ${entity} mapping for '${source.label}'`, 400);
 
   const references = getReferences(entity, source.customerId);
-  const missing = references.find(ref => ref.keys.size === 0);
-  if (missing) throw new ImportError(`Import ${missing.entity} first`, 409);
+  const missing = getMissingReferences(references);
+  if (missing.length > 0) throw new ImportError(`Import ${missing.join(' and ')} first`, 409);
 
   const startedAt = new Date().toISOString();
   const text = fs.readFileSync(path.join(dataDir, source.folder, file.filename), 'utf8');
@@ -222,7 +234,7 @@ function importEntity(sourceKey, entity, { dataDir = DEFAULT_DATA_DIR } = {}) {
 
   const records = accepted.map(({ line, record, warnings: rowWarnings }) => {
     warnings.push(...rowWarnings.map(issue => atRow(line, issue)));
-    return ENTITIES[entity].create({ ...record, customerId: source.customerId });
+    return ENTITIES[entity].create({ ...record, customerId: source.customerId }, mapping);
   });
 
   ENTITIES[entity].save(records);

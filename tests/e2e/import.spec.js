@@ -116,4 +116,39 @@ test.describe('Import Tab', () => {
     await expect(james.locator('.owning-client')).toContainText('Dockside Imports');
     await expect(james).toContainText('Dormant');
   });
+
+  test('should import XYZ transactions after clients and accounts, with standard values and a currency', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Import', exact: true }).click();
+
+    const xyz = page.locator('tr[data-source="xyz-financial-services"]');
+    await xyz.getByRole('button', { name: 'Import clients' }).click();
+    await expect(page.locator('.import-summary')).toContainText('Imported 12 clients');
+    await xyz.getByRole('button', { name: 'Import accounts' }).click();
+    await expect(page.locator('.import-summary')).toContainText('Imported 39 accounts');
+
+    const transactionsRow = xyz.filter({ hasText: 'transactions.csv' });
+    await expect(transactionsRow.locator('.waiting-for')).toHaveCount(0);
+    await transactionsRow.getByRole('button', { name: 'Import transactions' }).click();
+    await expect(page.locator('.import-summary')).toContainText('Imported 25 transactions');
+
+    const rows = page.locator('.records-table tbody tr');
+    await expect(rows).toHaveCount(25);
+
+    // T-10001, a customer payment: CR / POSTED / WIRE in the file
+    const payment = rows.first();
+    await expect(payment).toContainText('T-10001');
+    await expect(payment.locator('.owning-client')).toContainText('Apex Digital Marketing');
+    await expect(payment).toContainText('credit');
+    await expect(payment).toContainText('CR');
+    await expect(payment).toContainText('completed');
+    await expect(payment).toContainText('POSTED');
+    await expect(payment).toContainText('22500');
+    await expect(payment).toContainText('USD');
+
+    await expect(rows.filter({ hasText: 'pending' }).first()).toContainText('PENDING');
+    await expect(rows.filter({ hasText: 'cancelled' }).first()).toContainText('VOID');
+    await expect(rows.filter({ hasText: 'debit' }).first()).toContainText('DR');
+    await expect(rows.filter({ hasText: 'GBP' })).toHaveCount(0);
+  });
 });

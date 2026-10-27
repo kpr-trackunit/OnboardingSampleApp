@@ -24,7 +24,8 @@ const store = {
   clients: [],
   importRuns: [],
   accounts: [],
-  contacts: []
+  contacts: [],
+  transactions: []
 };
 
 // Seed with example data
@@ -292,6 +293,23 @@ function saveContacts(contacts) {
   return contacts;
 }
 
+function getTransactions(customerId) {
+  return store.transactions.filter(t => t.customerId === customerId);
+}
+
+// Inserts or replaces each transaction by customerId + sourceId, so re-importing never duplicates
+function saveTransactions(transactions) {
+  transactions.forEach(transaction => {
+    const index = store.transactions.findIndex(t => t.customerId === transaction.customerId && t.sourceId === transaction.sourceId);
+    if (index !== -1) {
+      store.transactions[index] = transaction;
+    } else {
+      store.transactions.push(transaction);
+    }
+  });
+  return transactions;
+}
+
 function addImportRun(run) {
   store.importRuns.push(run);
   return run;
@@ -328,5 +346,7 @@ module.exports = {
   getAccountByCode,
   saveAccounts,
   getContacts,
-  saveContacts
+  saveContacts,
+  getTransactions,
+  saveTransactions
 };

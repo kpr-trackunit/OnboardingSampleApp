@@ -96,6 +96,26 @@ const TENANT_REGIONS = ['North America', 'EU', 'UK', 'APAC'];
  */
 
 /**
+ * @typedef {Object} Transaction
+ * @property {string} id - Unique transaction identifier
+ * @property {string} customerId - Customer whose data this came from
+ * @property {string} sourceId - Transaction ID in the customer's file
+ * @property {string} date - ISO date (YYYY-MM-DD)
+ * @property {string} clientSourceId - sourceId of the client the transaction belongs to
+ * @property {string} accountCode - Code of the account it posts to (a string, so leading zeros are kept)
+ * @property {string} description
+ * @property {string} direction - 'debit' | 'credit'
+ * @property {string} directionSource - Original direction value (e.g. "DR", "C")
+ * @property {number|null} amount - Amount as a number, in `currency`
+ * @property {string} currency - ISO currency code of the source file (no conversion)
+ * @property {string|null} status - 'completed' | 'pending' | 'cancelled'
+ * @property {string} statusSource - Original status value
+ * @property {string|null} paymentMethod - 'wire' | 'bank_transfer' | 'ach' | 'check' | 'card' | 'cash'
+ * @property {string} paymentMethodSource - Original payment method value
+ * @property {string} reference - Document or reference number
+ */
+
+/**
  * @typedef {Object} ValueMap
  * @property {Object<string, string>} map - Source value → standard value
  * @property {string|null} default - Standard value used when a source value isn't mapped
@@ -110,6 +130,7 @@ const TENANT_REGIONS = ['North America', 'EU', 'UK', 'APAC'];
  * @property {Object<string, ValueMap>} values - Picklist target field → value map
  * @property {string|null} dateFormat - 'MM/DD/YYYY' | 'YYYY-MM-DD' | 'DD-MM-YYYY' | null
  * @property {string} dateFormatDetected - 'detected' | 'ambiguous' | 'confirmed'
+ * @property {string|null} currency - Transactions only: ISO currency code of the source's amounts
  * @property {string} updatedAt - ISO timestamp
  */
 
@@ -293,6 +314,35 @@ function createContact(data) {
   };
 }
 
+// Used when a source doesn't say which currency its amounts are in (ticket open question 2)
+const DEFAULT_CURRENCY = 'USD';
+
+/**
+ * Creates a new Transaction object
+ * @param {Partial<Transaction>} data
+ * @returns {Transaction}
+ */
+function createTransaction(data) {
+  return {
+    id: data.id || `transaction_${data.customerId}_${data.sourceId}`,
+    customerId: data.customerId || '',
+    sourceId: data.sourceId || '',
+    date: data.date || null,
+    clientSourceId: data.clientSourceId || '',
+    accountCode: data.accountCode === undefined || data.accountCode === null ? '' : String(data.accountCode),
+    description: data.description || '',
+    direction: data.direction || null,
+    directionSource: data.directionSource || '',
+    amount: data.amount ?? null,
+    currency: data.currency || DEFAULT_CURRENCY,
+    status: data.status || null,
+    statusSource: data.statusSource || '',
+    paymentMethod: data.paymentMethod || null,
+    paymentMethodSource: data.paymentMethodSource || '',
+    reference: data.reference || ''
+  };
+}
+
 /**
  * Creates a new Mapping object
  * @param {Partial<Mapping>} data
@@ -307,6 +357,7 @@ function createMapping(data) {
     values: data.values || {},
     dateFormat: data.dateFormat || null,
     dateFormatDetected: data.dateFormatDetected || 'detected',
+    currency: data.currency || null,
     updatedAt: data.updatedAt || new Date().toISOString()
   };
 }
@@ -344,5 +395,7 @@ module.exports = {
   createContact,
   createMapping,
   createImportRun,
-  createAccount
+  createAccount,
+  createTransaction,
+  DEFAULT_CURRENCY
 };
