@@ -2,7 +2,8 @@
 const { test, expect } = require('@playwright/test');
 
 test.describe('Tenant Setup', () => {
-  // Tests share the server's in-memory tenants, so run them one at a time
+  // These tests share one in-memory server and the status test changes the
+  // seeded tenant, so run them in order: list (pending) first, then change it.
   test.describe.configure({ mode: 'serial' });
 
   test('should list Acme tenant as pending', async ({ page }) => {
@@ -43,5 +44,35 @@ test.describe('Tenant Setup', () => {
       // Put the shared tenant back for other tests
       await request.patch(`/api/tenants/${customerId}`, { data: { plan: originalPlan } });
     }
+  });
+
+  test('Start then Mark active completes the Tenant Setup step on the Dashboard', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Tenant Setup' }).click();
+
+    // The seeded tenant, found by customer id; its name is read from the row
+    const row = page.locator('.tenant-table tbody tr[data-customer-id="cust_001"]');
+    await expect(row.locator('.status-badge')).toHaveText('pending');
+    const customerName = (await row.locator('td').first().innerText()).trim();
+
+    // Only the valid next action is offered at each status
+    await expect(row.getByRole('button')).toHaveText(['Start']);
+    await row.getByRole('button', { name: 'Start' }).click();
+    await expect(row.locator('.status-badge')).toHaveText('provisioning');
+
+    await expect(row.getByRole('button')).toHaveText(['Mark active']);
+    await row.getByRole('button', { name: 'Mark active' }).click();
+    await expect(row.locator('.status-badge')).toHaveText('active');
+    await expect(row.getByRole('button')).toHaveCount(0);
+
+    // Dashboard re-fetches on tab switch: step 3 completed, 1 of 4 steps = 25%
+    await page.getByRole('button', { name: 'Dashboard' }).click();
+    const card = page.locator('.customer-card', {
+      has: page.getByRole('heading', { name: customerName, exact: true })
+    });
+    const tenantStep = card.locator('.checklist li', { hasText: 'Tenant Setup' });
+    await expect(tenantStep).toContainText('completed');
+    await expect(tenantStep.locator('.step-status')).toHaveClass(/completed/);
+    await expect(card.locator('.progress-bar')).toHaveText('25%');
   });
 });
