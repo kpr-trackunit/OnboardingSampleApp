@@ -2,8 +2,9 @@
 const { test, expect } = require('@playwright/test');
 
 test.describe('Tenant Setup', () => {
-  // These tests share one in-memory server and the status test changes the
-  // seeded tenant, so run them in order: list (pending) first, then change it.
+  // These tests share one in-memory server and the status tests change the
+  // seeded tenant, so run them in order: list (pending) first, then
+  // Start -> failed -> Retry (provisioning), then Mark active (terminal).
   test.describe.configure({ mode: 'serial' });
 
   test('should list Acme tenant as pending', async ({ page }) => {
@@ -46,7 +47,9 @@ test.describe('Tenant Setup', () => {
     }
   });
 
-  test('Start then Mark active completes the Tenant Setup step on the Dashboard', async ({ page }) => {
+  // Leaves the seeded tenant in provisioning (after Retry) for the Mark active test below
+  test('Start, Mark failed with a reason, then Retry clears it', async ({ page }) => {
+    const reason = 'Region not available for enterprise plan';
     await page.goto('/');
     await page.getByRole('button', { name: 'Tenant Setup' }).click();
 
@@ -59,8 +62,56 @@ test.describe('Tenant Setup', () => {
     await expect(row.getByRole('button')).toHaveText(['Start']);
     await row.getByRole('button', { name: 'Start' }).click();
     await expect(row.locator('.status-badge')).toHaveText('provisioning');
+    await expect(row.getByRole('button')).toHaveText(['Mark active', 'Mark failed']);
 
-    await expect(row.getByRole('button')).toHaveText(['Mark active']);
+    // Mark failed asks for a reason and can't be submitted while it's blank
+    await row.getByRole('button', { name: 'Mark failed' }).click();
+    const reasonInput = row.getByRole('textbox', { name: 'Failure reason' });
+    const submit = row.getByRole('button', { name: 'Mark failed' });
+    await expect(reasonInput).toBeVisible();
+    await expect(submit).toBeDisabled();
+    await reasonInput.fill('   ');
+    await expect(submit).toBeDisabled();
+
+    await reasonInput.fill(reason);
+    await expect(submit).toBeEnabled();
+    await submit.click();
+
+    await expect(row.locator('.status-badge')).toHaveText('failed');
+    await expect(row.locator('.failure-reason')).toHaveText(reason);
+    await expect(row.getByRole('button')).toHaveText(['Retry']);
+
+    // Dashboard step 3 mirrors failed
+    await page.getByRole('button', { name: 'Dashboard' }).click();
+    // Exactly this customer; a failed step also adds a "Needs attention" badge to the heading
+    const escapedName = customerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const card = page.locator('.customer-card', {
+      has: page.getByRole('heading', { name: new RegExp(`^${escapedName}\\s*(Needs attention)?$`) })
+    });
+    const tenantStep = card.locator('.checklist li', { hasText: 'Tenant Setup' });
+    await expect(tenantStep.locator('.step-status')).toHaveClass(/failed/);
+    await expect(card.locator('.attention-badge')).toHaveText('Needs attention');
+    await expect(tenantStep).toContainText('failed');
+
+    // Retry goes back to provisioning and clears the reason
+    await page.getByRole('button', { name: 'Tenant Setup' }).click();
+    await expect(row.locator('.failure-reason')).toHaveText(reason);
+    await row.getByRole('button', { name: 'Retry' }).click();
+    await expect(row.locator('.status-badge')).toHaveText('provisioning');
+    await expect(row.locator('.failure-reason')).toHaveCount(0);
+    await expect(row).not.toContainText(reason);
+  });
+
+  test('Mark active completes the Tenant Setup step on the Dashboard', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Tenant Setup' }).click();
+
+    // The seeded tenant, left in provisioning by the Retry test above
+    const row = page.locator('.tenant-table tbody tr[data-customer-id="cust_001"]');
+    await expect(row.locator('.status-badge')).toHaveText('provisioning');
+    const customerName = (await row.locator('td').first().innerText()).trim();
+
+    await expect(row.getByRole('button')).toHaveText(['Mark active', 'Mark failed']);
     await row.getByRole('button', { name: 'Mark active' }).click();
     await expect(row.locator('.status-badge')).toHaveText('active');
     await expect(row.getByRole('button')).toHaveCount(0);

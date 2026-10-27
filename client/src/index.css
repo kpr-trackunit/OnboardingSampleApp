@@ -152,6 +152,11 @@ header p {
   color: white;
 }
 
+.step-status.failed {
+  background: #dc2626;
+  color: white;
+}
+
 .customer-card {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -197,6 +202,13 @@ header p {
 
 .source-label {
   font-weight: 500;
+}
+
+/* Import is blocked until the source's tenant is active (tenant slice 7) */
+.tenant-notice {
+  margin: 4px 0 0;
+  color: #b45309;
+  font-size: 0.8rem;
 }
 
 .button {
