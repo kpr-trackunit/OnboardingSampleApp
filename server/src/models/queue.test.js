@@ -1,6 +1,6 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert');
-const { buildQueue, openIssueCount, daysWaiting } = require('./queue');
+const { buildQueue, openIssueCount, daysWaiting, needsAttention, sortQueue } = require('./queue');
 const { createDefaultOnboardingSteps } = require('./index');
 
 const acme = { id: 'cust_001', name: 'Acme', industry: 'Manufacturing', region: 'EMEA' };
@@ -222,5 +222,57 @@ describe('currentStep', () => {
 
     assert.strictEqual(done.currentStep, null);
     assert.deepStrictEqual(fresh.currentStep, { id: steps[1].id, name: steps[1].name });
+  });
+});
+
+describe('needsAttention', () => {
+  it('should be false when no step has failed', () => {
+    const steps = createDefaultOnboardingSteps();
+    steps[0].status = 'completed';
+    steps[1].status = 'in_progress';
+
+    assert.strictEqual(needsAttention(steps), false);
+    assert.strictEqual(buildQueue([acme], [{ customerId: 'cust_001', steps }])[0].needsAttention, false);
+  });
+
+  it('should be true when any step has failed', () => {
+    const steps = createDefaultOnboardingSteps();
+    steps[0].status = 'completed';
+    steps[2].status = 'failed';
+
+    assert.strictEqual(needsAttention(steps), true);
+    assert.strictEqual(buildQueue([acme], [{ customerId: 'cust_001', steps }])[0].needsAttention, true);
+  });
+
+  it('should be false for a customer with no state (default pending steps)', () => {
+    assert.strictEqual(buildQueue([globex], [])[0].needsAttention, false);
+  });
+});
+
+describe('sortQueue', () => {
+  const row = (customerId, attention) => ({ customerId, needsAttention: attention });
+
+  it('should list rows needing attention first, keeping the existing order within each group', () => {
+    const rows = [row('a', false), row('b', true), row('c', false), row('d', true), row('e', false)];
+
+    assert.deepStrictEqual(sortQueue(rows).map(r => r.customerId), ['b', 'd', 'a', 'c', 'e']);
+  });
+
+  it('should keep the existing order when nothing needs attention', () => {
+    const rows = [row('a', false), row('b', false), row('c', false)];
+
+    assert.deepStrictEqual(sortQueue(rows).map(r => r.customerId), ['a', 'b', 'c']);
+  });
+
+  it('should not mutate the input', () => {
+    const rows = [row('a', false), row('b', true)];
+
+    sortQueue(rows);
+
+    assert.deepStrictEqual(rows.map(r => r.customerId), ['a', 'b']);
+  });
+
+  it('should return an empty array for an empty queue', () => {
+    assert.deepStrictEqual(sortQueue([]), []);
   });
 });
