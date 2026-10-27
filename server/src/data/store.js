@@ -135,6 +135,7 @@ const TENANT_SETUP_STEP_ID = 'step_3';
  * and mirrors it onto onboarding step 3 (recalculating progressPercent).
  * Moving to 'failed' requires a non-empty reason, stored as failureReason;
  * every other move (e.g. Retry: failed -> provisioning) clears it.
+ * Each change appends { at, from, to, reason? } to statusHistory.
  * @param {string} customerId
  * @param {string} status
  * @param {string} [reason] - Required when status is 'failed'
@@ -159,12 +160,16 @@ function updateTenantStatus(customerId, status, reason) {
     return { error: 'A reason is required to mark a tenant failed', code: 'reason_required' };
   }
 
+  // Every status change is logged; the reason is kept only on failed entries
+  const entry = { at: new Date().toISOString(), from: current.status, to: status };
+  if (status === 'failed') entry.reason = failureReason;
+
   const tenant = {
     ...current,
     status,
-    failureReason: status === 'failed' ? failureReason : null
+    failureReason: status === 'failed' ? failureReason : null,
+    statusHistory: [...(current.statusHistory || []), entry]
   };
-  // Slice 8 (status history): append { at, from: current.status, to: status, reason? } to tenant.statusHistory here
   store.tenants[index] = tenant;
 
   const state = getOnboardingState(customerId);

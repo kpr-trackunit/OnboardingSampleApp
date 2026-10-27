@@ -59,10 +59,10 @@ test.describe('Tenant Setup', () => {
     const customerName = (await row.locator('td').first().innerText()).trim();
 
     // Only the valid next action is offered at each status
-    await expect(row.getByRole('button')).toHaveText(['Start']);
+    await expect(row.locator('.tenant-actions').getByRole('button')).toHaveText(['Start']);
     await row.getByRole('button', { name: 'Start' }).click();
     await expect(row.locator('.status-badge')).toHaveText('provisioning');
-    await expect(row.getByRole('button')).toHaveText(['Mark active', 'Mark failed']);
+    await expect(row.locator('.tenant-actions').getByRole('button')).toHaveText(['Mark active', 'Mark failed']);
 
     // Mark failed asks for a reason and can't be submitted while it's blank
     await row.getByRole('button', { name: 'Mark failed' }).click();
@@ -79,7 +79,7 @@ test.describe('Tenant Setup', () => {
 
     await expect(row.locator('.status-badge')).toHaveText('failed');
     await expect(row.locator('.failure-reason')).toHaveText(reason);
-    await expect(row.getByRole('button')).toHaveText(['Retry']);
+    await expect(row.locator('.tenant-actions').getByRole('button')).toHaveText(['Retry']);
 
     // Dashboard step 3 mirrors failed
     await page.getByRole('button', { name: 'Dashboard' }).click();
@@ -97,6 +97,29 @@ test.describe('Tenant Setup', () => {
     await expect(row.locator('.status-badge')).toHaveText('provisioning');
     await expect(row.locator('.failure-reason')).toHaveCount(0);
     await expect(row).not.toContainText(reason);
+
+    // History keeps every change so far, oldest first, with the reason on the failed entry
+    const history = page.locator('.history-row[data-history-for="cust_001"]');
+    await expect(history).toHaveCount(0);
+    await row.getByRole('button', { name: 'History' }).click();
+    await expect(row.getByRole('button', { name: 'Hide history' })).toHaveAttribute('aria-expanded', 'true');
+    const entries = history.locator('.history-entry');
+    await expect(entries.locator('.history-transition')).toHaveText([
+      'pending → provisioning',
+      'provisioning → failed',
+      'failed → provisioning'
+    ]);
+    await expect(entries.nth(1).locator('.history-reason')).toHaveText(reason);
+    await expect(entries.nth(0).locator('.history-reason')).toHaveCount(0);
+    await expect(entries.nth(2).locator('.history-reason')).toHaveCount(0);
+    for (let i = 0; i < 3; i++) {
+      await expect(entries.nth(i).locator('time')).not.toBeEmpty();
+    }
+    await expect(history.locator('.time-in-status')).toHaveText('provisioning for less than a minute');
+
+    // It closes again
+    await row.getByRole('button', { name: 'Hide history' }).click();
+    await expect(history).toHaveCount(0);
   });
 
   test('Mark active completes the Tenant Setup step on the Dashboard', async ({ page }) => {
@@ -108,10 +131,10 @@ test.describe('Tenant Setup', () => {
     await expect(row.locator('.status-badge')).toHaveText('provisioning');
     const customerName = (await row.locator('td').first().innerText()).trim();
 
-    await expect(row.getByRole('button')).toHaveText(['Mark active', 'Mark failed']);
+    await expect(row.locator('.tenant-actions').getByRole('button')).toHaveText(['Mark active', 'Mark failed']);
     await row.getByRole('button', { name: 'Mark active' }).click();
     await expect(row.locator('.status-badge')).toHaveText('active');
-    await expect(row.getByRole('button')).toHaveCount(0);
+    await expect(row.locator('.tenant-actions').getByRole('button')).toHaveCount(0);
 
     // Dashboard re-fetches on tab switch: step 3 completed, 1 of 4 steps = 25%
     await page.getByRole('button', { name: 'Dashboard' }).click();
