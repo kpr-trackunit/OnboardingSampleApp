@@ -16,6 +16,7 @@ function CustomerInfoTable({ customers }) {
         <tr>
           <th>Customer</th>
           {INFO_FIELDS.map(field => <th key={field.key}>{field.label}</th>)}
+          <th>Status</th>
         </tr>
       </thead>
       <tbody>
