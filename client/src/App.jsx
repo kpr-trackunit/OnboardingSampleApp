@@ -6,6 +6,7 @@ import DataMappingTab from './components/DataMappingTab';
 import SummaryStrip from './components/SummaryStrip';
 import CurrentStepBadge from './components/CurrentStepBadge';
 import AttentionBadge, { attentionCardClass } from './components/AttentionBadge';
+import CustomerInfoTab from './components/CustomerInfoTab';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -52,9 +53,7 @@ function App() {
       <main className="content">
         {activeTab === 'dashboard' && <DashboardTab />}
         {activeTab === 'customers' && <CustomerListTab customers={customers} onSaved={loadCustomers} />}
-        {activeTab === 'customer-info' && (
-          <PlaceholderTab title="Customer Info" description="Collect and validate customer information" />
-        )}
+        {activeTab === 'customer-info' && <CustomerInfoTab />}
         {activeTab === 'data-mapping' && <DataMappingTab />}
         {activeTab === 'tenant-setup' && (
           <TenantSetupTab />

@@ -1,0 +1,22 @@
+.customer-info-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.customer-info-table th,
+.customer-info-table td {
+  text-align: left;
+  padding: 12px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.customer-info-table th {
+  color: #6b7280;
+  font-size: 0.85rem;
+  font-weight: 500;
+  border-bottom-color: #e5e7eb;
+}
+
+.customer-info-table .missing {
+  color: #9ca3af;
+}
