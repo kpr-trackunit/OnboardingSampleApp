@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import TenantSetupTab from './components/TenantSetupTab';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -65,7 +66,7 @@ function App() {
           <PlaceholderTab title="Data Mapping" description="Map customer data to platform configuration" />
         )}
         {activeTab === 'tenant-setup' && (
-          <PlaceholderTab title="Tenant Setup" description="Provision and configure customer tenant" />
+          <TenantSetupTab />
         )}
         {activeTab === 'import' && <ImportTab />}
       </main>
