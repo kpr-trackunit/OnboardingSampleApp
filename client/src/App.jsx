@@ -220,9 +220,11 @@ function CustomerCard({ customer, onSaved }) {
   };
 
   if (!editing) {
+    const unresolved = (customer.issues || []).filter(i => i.status !== 'resolved').length;
     return (
       <div className="customer-card">
         <h3>{customer.name}</h3>
+        <p style={{ color: '#6b7280', fontSize: '0.9rem' }}>{unresolved} unresolved issue(s)</p>
         <button
           onClick={() => { setName(customer.name); setError(null); setEditing(true); }}
           style={{ marginTop: '8px', padding: '4px 12px' }}

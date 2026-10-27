@@ -16,6 +16,8 @@ createdAt: 2025-01-16T10:00:00Z
 
 ## Issues
 
-- [open] MM/DD/YYYY dates not mapped to platform date format
-- [in-progress] Status picklist (Active/Inactive/Pending) unmapped
-- [resolved] Chart of accounts imported to sandbox tenant
+- [open] chart_of_accounts.csv line 33: description "Electric, gas, water" has unquoted commas (10 fields, expected 8)
+- [open] Dates are MM/DD/YYYY; need mapping to the platform date format
+- [open] 3 Pending (TXN005, TXN009, TXN015) and 1 Voided (TXN018) transactions need import rules
+- [in-progress] 10 payment method values (incl. Bank Charge, Journal Entry, Financing) need value mapping
+- [resolved] All contacts and transactions reference known clients and accounts
