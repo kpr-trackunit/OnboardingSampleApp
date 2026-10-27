@@ -4,7 +4,7 @@
 
 const express = require('express');
 const store = require('../data/store');
-const { TENANT_PLANS, TENANT_STATUS_TRANSITIONS } = require('../models');
+const { TENANT_PLANS, TENANT_REGIONS, TENANT_STATUS_TRANSITIONS } = require('../models');
 
 const router = express.Router();
 
@@ -13,7 +13,10 @@ const router = express.Router();
 const EDITABLE_FIELDS = {
   plan: value => (TENANT_PLANS.includes(value)
     ? null
-    : `Invalid plan. Must be one of: ${TENANT_PLANS.join(', ')}`)
+    : `Invalid plan. Must be one of: ${TENANT_PLANS.join(', ')}`),
+  region: value => (TENANT_REGIONS.includes(value)
+    ? null
+    : `Invalid region. Must be one of: ${TENANT_REGIONS.join(', ')}`)
 };
 
 // Get all tenants with their customer name
