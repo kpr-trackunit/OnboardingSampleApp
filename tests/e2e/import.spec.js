@@ -104,9 +104,13 @@ test.describe('Import Tab', () => {
     await expect(page.locator('.import-errors')).toHaveCount(0);
   });
 
-  test('should import XYZ and Premier clients with standard values and ISO dates', async ({ page }) => {
-    await page.goto('/');
-    await page.getByRole('button', { name: 'Import', exact: true }).click();
+  test('should import XYZ and Premier clients with standard values and ISO dates', async ({ page, request }) => {
+    for (const sourceKey of ['xyz-financial-services', 'premier-bookkeeping']) {
+      const customerId = await sourceCustomerId(request, sourceKey);
+      await resetTenantToPending(request, customerId);
+      await activateTenant(request, customerId);
+    }
+    await openImportTab(page);
 
     await page.locator('tr[data-source="xyz-financial-services"]').getByRole('button', { name: 'Import clients' }).click();
     await expect(page.locator('.import-summary')).toContainText('Imported 12 clients');
