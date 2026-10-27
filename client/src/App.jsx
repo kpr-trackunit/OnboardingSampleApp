@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { saveCustomer } from './api';
 import CustomerDetails from './components/CustomerDetails';
 import TenantSetupTab from './components/TenantSetupTab';
+import CustomerInfoTab from './components/CustomerInfoTab';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -79,9 +80,7 @@ function App() {
           <DashboardTab data={onboardingData} loading={loading} error={error} />
         )}
         {activeTab === 'customers' && <CustomerListTab customers={customers} onSaved={loadCustomers} />}
-        {activeTab === 'customer-info' && (
-          <PlaceholderTab title="Customer Info" description="Collect and validate customer information" />
-        )}
+        {activeTab === 'customer-info' && <CustomerInfoTab />}
         {activeTab === 'data-mapping' && (
           <PlaceholderTab title="Data Mapping" description="Map customer data to platform configuration" />
         )}
