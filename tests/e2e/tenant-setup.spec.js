@@ -7,7 +7,7 @@ test.describe('Tenant Setup', () => {
     await page.getByRole('button', { name: 'Tenant Setup' }).click();
 
     // Acme's seeded tenant is shown with its status badge and plan
-    const acmeRow = page.locator('.tenant-table tbody tr', { hasText: 'Acme Corporation' });
+    const acmeRow = page.locator('.tenant-table tbody tr', { hasText: /Acme/ });
     await expect(acmeRow).toBeVisible();
     await expect(acmeRow.locator('.status-badge')).toHaveText('pending');
     await expect(acmeRow.locator('.status-badge')).toHaveClass(/pending/);

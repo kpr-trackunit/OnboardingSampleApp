@@ -1,10 +1,12 @@
 const express = require('express');
 const cors = require('cors');
 const store = require('./data/store');
+const { createCustomer } = require('./models');
 const { listSources } = require('./import/sources');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const ISSUE_STATUSES = ['open', 'in-progress', 'resolved'];
 
 // Middleware
 app.use(cors());
@@ -18,6 +20,53 @@ app.get('/api/health', (req, res) => {
 // Get all customers
 app.get('/api/customers', (req, res) => {
   res.json(store.getCustomers());
+});
+
+// Add a customer (stub: name only)
+app.post('/api/customers', (req, res) => {
+  const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+  if (!name) {
+    return res.status(400).json({ error: 'Customer name is required' });
+  }
+  res.status(201).json(store.addCustomer(createCustomer({ name })));
+});
+
+// Update a customer's name and/or config
+app.put('/api/customers/:id', (req, res) => {
+  const { name, config, issues } = req.body || {};
+  const updates = {};
+  if (name !== undefined) {
+    if (typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({ error: 'Customer name is required' });
+    }
+    updates.name = name.trim();
+  }
+  if (config !== undefined) {
+    if (!config || typeof config !== 'object' || Array.isArray(config)) {
+      return res.status(400).json({ error: 'Config must be an object of key/value pairs' });
+    }
+    if (Object.keys(config).some(k => k.includes(':'))) {
+      return res.status(400).json({ error: 'Config keys cannot contain ":"' });
+    }
+    updates.config = Object.fromEntries(
+      Object.entries(config)
+        .map(([k, v]) => [k.trim(), String(v ?? '')])
+        .filter(([k]) => k)
+    );
+  }
+  if (issues !== undefined) {
+    const valid = Array.isArray(issues) && issues.every(i =>
+      i && typeof i.title === 'string' && i.title.trim() && ISSUE_STATUSES.includes(i.status));
+    if (!valid) {
+      return res.status(400).json({ error: `Issues need a title and a status of ${ISSUE_STATUSES.join(', ')}` });
+    }
+    updates.issues = issues.map(i => ({ title: i.title.trim(), status: i.status }));
+  }
+  const customer = store.updateCustomer(req.params.id, updates);
+  if (!customer) {
+    return res.status(404).json({ error: 'Customer not found' });
+  }
+  res.json(customer);
 });
 
 // Get customer by ID

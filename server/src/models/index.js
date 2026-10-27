@@ -10,6 +10,8 @@
  * @property {string} region - Geographic region
  * @property {string} contactEmail - Primary contact email
  * @property {string} createdAt - ISO timestamp
+ * @property {Object<string, string>} config - Free-form per-customer config key/values
+ * @property {{title: string, status: string}[]} issues - Tenant setup issues; status is 'open' | 'in-progress' | 'resolved'
  */
 
 /**
@@ -48,7 +50,9 @@ function createCustomer(data) {
     industry: data.industry || '',
     region: data.region || '',
     contactEmail: data.contactEmail || '',
-    createdAt: data.createdAt || new Date().toISOString()
+    createdAt: data.createdAt || new Date().toISOString(),
+    config: data.config || {},
+    issues: data.issues || []
   };
 }
 

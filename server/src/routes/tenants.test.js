@@ -2,6 +2,7 @@ const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert');
 const express = require('express');
 const tenantsRouter = require('./tenants');
+const store = require('../data/store');
 
 describe('Tenant routes', () => {
   let server;
@@ -33,7 +34,8 @@ describe('Tenant routes', () => {
 
       const [acme] = tenants;
       assert.strictEqual(acme.customerId, 'cust_001');
-      assert.strictEqual(acme.customerName, 'Acme Corporation');
+      // Customer names come from customers/*.md, so compare against the store
+      assert.strictEqual(acme.customerName, store.getCustomerById('cust_001').name);
       assert.strictEqual(acme.status, 'pending');
       assert.strictEqual(acme.plan, 'professional');
       assert.ok(acme.createdAt);

@@ -4,6 +4,7 @@
  */
 
 const { createCustomer, createTenant, createDefaultOnboardingSteps } = require('../models');
+const customerFiles = require('./customerFiles');
 
 // In-memory storage
 const store = {
@@ -40,7 +41,12 @@ function seedData() {
     progressPercent: 0
   };
 
-  store.customers.push(exampleCustomer);
+  // Customers are persisted as markdown files; seed the example only on first run
+  store.customers.push(...customerFiles.loadAll());
+  if (store.customers.length === 0) {
+    customerFiles.save(exampleCustomer);
+    store.customers.push(exampleCustomer);
+  }
   store.tenants.push(exampleTenant);
   store.onboardingStates.push(exampleOnboardingState);
 }
@@ -58,8 +64,18 @@ function getCustomerById(id) {
 }
 
 function addCustomer(customer) {
+  customerFiles.save(customer);
   store.customers.push(customer);
   return customer;
+}
+
+function updateCustomer(id, updates) {
+  const index = store.customers.findIndex(c => c.id === id);
+  if (index === -1) return null;
+  const updated = { ...store.customers[index], ...updates, id };
+  customerFiles.save(updated);
+  store.customers[index] = updated;
+  return updated;
 }
 
 function getTenants() {
@@ -109,6 +125,7 @@ module.exports = {
   getCustomers,
   getCustomerById,
   addCustomer,
+  updateCustomer,
   getTenants,
   getTenantList,
   getTenantByCustomerId,
