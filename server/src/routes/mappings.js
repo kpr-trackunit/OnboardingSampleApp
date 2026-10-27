@@ -1,15 +1,17 @@
 /**
  * Data Mapping routes, mounted at /api/mappings
  *
- * Read-only for now (data-mapping slice 1). Later slices add completeness and
- * reasons to each entity entry (slice 2), PUT for columns and values (3, 4)
- * and POST /:customerId/:entity/preview (8).
+ * Read-only for now. Each entity entry in the customer overview carries its
+ * completeness and reasons (data-mapping slice 2), checked against the customer's
+ * source file. Later slices add PUT for columns and values (3, 4) and
+ * POST /:customerId/:entity/preview (8).
  */
 
 const express = require('express');
 const store = require('../data/store');
 const { ENTITY_FILES } = require('../import/sources');
 const { getTargetFields } = require('../models/targetFields');
+const { mappingCompleteness, readFileRows } = require('../import/completeness');
 
 const router = express.Router();
 
@@ -48,7 +50,21 @@ function findCustomer(req, res) {
   return customer;
 }
 
-// Every entity for a customer, each with its mapping or null ("No mapping yet")
+/**
+ * A customer's mapping for one entity, checked against that customer's source file
+ * @param {string} customerId
+ * @param {string} entity
+ * @returns {import('../import/completeness').Completeness}
+ */
+function entityCompleteness(customerId, entity) {
+  const mapping = store.getMapping(customerId, entity) || null;
+  const fileRows = mapping
+    ? readFileRows(customerId, mapping, { getSourceCustomerId: store.getSourceCustomerId })
+    : null;
+  return mappingCompleteness(mapping, fileRows, getTargetFields(entity));
+}
+
+// Every entity for a customer, each with its mapping (or null, "No mapping yet") and completeness
 router.get('/:customerId', (req, res) => {
   const customer = findCustomer(req, res);
   if (!customer) return;
@@ -58,7 +74,8 @@ router.get('/:customerId', (req, res) => {
     customerName: customer.name,
     entities: ENTITIES.map(entity => ({
       entity,
-      mapping: store.getMapping(customer.id, entity) || null
+      mapping: store.getMapping(customer.id, entity) || null,
+      completeness: entityCompleteness(customer.id, entity)
     }))
   });
 });
@@ -84,3 +101,4 @@ router.get('/:customerId/:entity', (req, res) => {
 module.exports = router;
 module.exports.ENTITIES = ENTITIES;
 module.exports.describeFields = describeFields;
+module.exports.entityCompleteness = entityCompleteness;

@@ -34,6 +34,39 @@ test.describe('Data Mapping Tab', () => {
     await expect(view.locator('.date-format')).toContainText('YYYY-MM-DD');
   });
 
+  test('should show a completeness badge per entity, with clients Complete for every sample customer', async ({ page, request }) => {
+    // The sample customers are the ones with a seeded clients mapping
+    const customers = await (await request.get('/api/customers')).json();
+    const samples = [];
+    for (const customer of customers) {
+      const overview = await (await request.get(`/api/mappings/${customer.id}`)).json();
+      if (overview.entities.find(e => e.entity === 'clients').mapping) samples.push({ customer, overview });
+    }
+    expect(samples).toHaveLength(3);
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Data Mapping' }).click();
+
+    for (const { customer, overview } of samples) {
+      await page.getByLabel('Customer').selectOption({ label: customer.name });
+
+      const cards = page.locator('.completeness-summary .entity-status');
+      await expect(cards).toHaveCount(4);
+      await expect(page.getByRole('group', { name: 'Entity' }).locator('.completeness-badge')).toHaveCount(4);
+
+      const clients = page.locator('.entity-status[data-entity="clients"]');
+      await expect(clients.locator('.completeness-badge')).toHaveText('Complete');
+      await expect(clients.locator('.date-status')).toContainText('detected');
+
+      // Entities with no mapping yet say so
+      for (const { entity } of overview.entities.filter(e => !e.mapping)) {
+        const card = page.locator(`.entity-status[data-entity="${entity}"]`);
+        await expect(card.locator('h4 .completeness-badge')).toHaveText('Incomplete');
+        await expect(card.locator('.completeness-reasons')).toContainText('No mapping yet');
+      }
+    }
+  });
+
   test('should say when an entity has no mapping yet', async ({ page, request }) => {
     const acme = await (await request.get('/api/customers/cust_001')).json();
 
