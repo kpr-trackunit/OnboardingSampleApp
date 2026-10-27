@@ -7,7 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const store = require('../data/store');
-const { createClient } = require('../models');
+const { createClient, createImportRun } = require('../models');
 const { DEFAULT_DATA_DIR, listSources, getSource } = require('./sources');
 const { parseCsv } = require('./csv');
 const { transformRow } = require('./transform');
@@ -17,8 +17,10 @@ const { getTargetFields } = require('../models/targetFields');
 
 // How each entity is created and stored
 const ENTITIES = {
-  clients: { create: createClient, save: store.addClients, list: store.getClients }
+  clients: { create: createClient, save: store.saveClients, list: store.getClients }
 };
+
+let runCount = 0;
 
 class ImportError extends Error {
   constructor(message, status) {
@@ -75,41 +77,88 @@ function withDetectedDateFormat(mapping, rows) {
   return mapping;
 }
 
+// Prefixes a transform issue with its row number
+function atRow(row, issue) {
+  return { row, ...issue, message: `row ${row}: ${issue.message}` };
+}
+
 /**
- * Imports one entity file for a source
+ * Imports one entity file for a source. Rejected rows are skipped and never block valid rows.
+ * Re-importing replaces records with the same sourceId, and each run is recorded as an ImportRun.
  * @param {string} sourceKey
  * @param {string} entity
  * @param {{ dataDir?: string }} [options]
- * @returns {{ entity: string, imported: number, rejected: number, dateFormat: string|null }}
+ * @returns {import('../models').ImportRun & { dateFormat: string|null }}
  */
 function importEntity(sourceKey, entity, { dataDir = DEFAULT_DATA_DIR } = {}) {
   const { source, file } = resolve(sourceKey, entity, dataDir);
   const storedMapping = store.getMapping(source.customerId, entity);
   if (!storedMapping) throw new ImportError(`No ${entity} mapping for '${source.label}'`, 400);
 
+  const startedAt = new Date().toISOString();
   const text = fs.readFileSync(path.join(dataDir, source.folder, file.filename), 'utf8');
   const { header, rows } = parseCsv(text);
+  const errors = [];
+  const warnings = [];
 
   // Rejoin unquoted commas in free text, then key each row by column name
-  let rejected = 0;
   const keyedRows = [];
-  rows.forEach(({ fields }) => {
+  rows.forEach(({ line, fields }) => {
     const recovered = rejoinOverflow(header, fields, storedMapping).fields;
     if (recovered.length !== header.length) {
-      rejected++;
+      errors.push(atRow(line, {
+        field: null,
+        column: null,
+        value: fields.join(','),
+        message: `has ${fields.length} fields, expected ${header.length}`
+      }));
       return;
     }
-    keyedRows.push(Object.fromEntries(header.map((column, i) => [column, recovered[i]])));
+    keyedRows.push({ line, row: Object.fromEntries(header.map((column, i) => [column, recovered[i]])) });
   });
 
-  const mapping = withDetectedDateFormat(storedMapping, keyedRows);
-  const records = keyedRows.map(row => {
-    const { record } = transformRow(row, mapping);
-    return ENTITIES[entity].create({ ...record, customerId: source.customerId });
+  const mapping = withDetectedDateFormat(storedMapping, keyedRows.map(({ row }) => row));
+  const idColumn = mapping.columns.sourceId;
+  const seenIds = new Set();
+  const records = [];
+
+  keyedRows.forEach(({ line, row }) => {
+    const result = transformRow(row, mapping);
+    const rowErrors = result.errors.map(issue => atRow(line, issue));
+
+    const { sourceId } = result.record;
+    if (sourceId && seenIds.has(sourceId)) {
+      rowErrors.push(atRow(line, {
+        field: 'sourceId',
+        column: idColumn,
+        value: sourceId,
+        message: `\`${idColumn}\` '${sourceId}' appears more than once in the file`
+      }));
+    }
+
+    if (rowErrors.length > 0) {
+      errors.push(...rowErrors);
+      return;
+    }
+    seenIds.add(sourceId);
+    warnings.push(...result.warnings.map(issue => atRow(line, issue)));
+    records.push(ENTITIES[entity].create({ ...result.record, customerId: source.customerId }));
   });
 
   ENTITIES[entity].save(records);
-  return { entity, imported: records.length, rejected, dateFormat: mapping.dateFormat };
+
+  runCount++;
+  const run = store.addImportRun(createImportRun({
+    id: `run_${runCount}`,
+    customerId: source.customerId,
+    entity,
+    startedAt,
+    imported: records.length,
+    rejected: new Set(errors.map(e => e.row)).size,
+    warnings,
+    errors
+  }));
+  return { ...run, dateFormat: mapping.dateFormat };
 }
 
 /**

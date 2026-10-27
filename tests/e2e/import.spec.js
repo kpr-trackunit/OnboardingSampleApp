@@ -33,6 +33,20 @@ test.describe('Import Tab', () => {
     await expect(page.locator('.records-table tbody tr').first()).toContainText('2023-01-15');
   });
 
+  test('should not duplicate clients when importing twice', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Import', exact: true }).click();
+
+    const importAbc = page.locator('tr[data-source="abc-accounting"]').getByRole('button', { name: 'Import clients' });
+    await importAbc.click();
+    await expect(page.locator('.import-summary')).toContainText('Imported 10 clients');
+    await importAbc.click();
+    await expect(importAbc).toBeEnabled();
+
+    await expect(page.locator('.records-table tbody tr')).toHaveCount(10);
+    await expect(page.locator('.import-errors')).toHaveCount(0);
+  });
+
   test('should import XYZ and Premier clients with standard values and ISO dates', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Import', exact: true }).click();
