@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import CustomerInfoTable from './CustomerInfoTable';
+import { CompletenessCount } from './CompletenessBadge';
 
 // Customer Info (onboarding step 1): one row per customer with the basics CS
 // needs before onboarding starts. App.jsx mounts this only while the tab is
@@ -48,6 +49,7 @@ function CustomerInfoTab() {
       <p style={{ color: '#6b7280', marginBottom: '20px' }}>
         Industry, region and contact email for each customer
       </p>
+      {customers.length > 0 && <CompletenessCount customers={customers} />}
       {customers.length === 0
         ? <div className="placeholder"><p>No customers yet</p></div>
         : <CustomerInfoTable customers={customers} />}

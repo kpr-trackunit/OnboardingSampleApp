@@ -1,4 +1,5 @@
 import React from 'react';
+import CompletenessBadge from './CompletenessBadge';
 
 // One customer's row. Blank or whitespace-only values show "Missing".
 function CustomerInfoRow({ customer, fields }) {
@@ -10,6 +11,7 @@ function CustomerInfoRow({ customer, fields }) {
           <FieldValue value={customer[field.key]} />
         </td>
       ))}
+      <td className="completeness"><CompletenessBadge missing={customer.missingInfo} /></td>
     </tr>
   );
 }

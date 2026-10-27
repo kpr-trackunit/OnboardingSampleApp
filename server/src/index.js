@@ -3,6 +3,7 @@ const cors = require('cors');
 const store = require('./data/store');
 const { createCustomer } = require('./models');
 const { buildQueue } = require('./models/queue');
+const { missingCustomerInfo } = require('./models/customerInfo');
 const { ImportError, listImportSources, importEntity, getImported } = require('./import/importer');
 
 const app = express();
@@ -18,9 +19,10 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Get all customers
+// Get all customers. Each one carries `missingInfo`: the required Customer Info
+// fields that are blank (empty when complete), so clients don't recompute it.
 app.get('/api/customers', (req, res) => {
-  res.json(store.getCustomers());
+  res.json(store.getCustomers().map(c => ({ ...c, missingInfo: missingCustomerInfo(c) })));
 });
 
 // Add a customer (stub: name only)

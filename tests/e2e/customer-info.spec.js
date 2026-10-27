@@ -52,4 +52,35 @@ test.describe('Customer Info', () => {
       await expect(cell).toHaveCSS('color', 'rgb(156, 163, 175)');
     }
   });
+
+  test('each row shows the completeness badge from the API, and the count matches', async ({ page, request }) => {
+    const LABELS = { name: 'name', industry: 'industry', region: 'region', contactEmail: 'email' };
+
+    const res = await request.get('/api/customers');
+    expect(res.ok()).toBeTruthy();
+    const customers = await res.json();
+    expect(customers.length).toBeGreaterThan(0);
+    for (const customer of customers) expect(Array.isArray(customer.missingInfo)).toBeTruthy();
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Customer Info' }).click();
+    await expect(page.locator('.customer-info-table tbody tr')).toHaveCount(customers.length);
+
+    for (const customer of customers) {
+      const badge = page.locator(
+        `.customer-info-table tbody tr[data-customer-id="${customer.id}"] .completeness-badge`);
+      if (customer.missingInfo.length === 0) {
+        await expect(badge).toHaveText('Complete');
+        await expect(badge).toHaveClass(/\bcomplete\b/);
+      } else {
+        const labels = customer.missingInfo.map(field => LABELS[field]);
+        await expect(badge).toHaveText(`Missing: ${labels.join(', ')}`);
+        await expect(badge).toHaveClass(/\bincomplete\b/);
+      }
+    }
+
+    const complete = customers.filter(c => c.missingInfo.length === 0).length;
+    await expect(page.locator('.completeness-count'))
+      .toHaveText(`${complete} of ${customers.length} complete`);
+  });
 });
