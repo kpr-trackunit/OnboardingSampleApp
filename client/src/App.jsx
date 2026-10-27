@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { saveCustomer } from './api';
 import CustomerDetails from './components/CustomerDetails';
 import TenantSetupTab from './components/TenantSetupTab';
+import AttentionBadge, { attentionCardClass } from './components/AttentionBadge';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -120,8 +121,8 @@ function DashboardTab({ data, loading, error }) {
       </p>
 
       {data.map(item => (
-        <div key={item.customerId} className="customer-card">
-          <h3>{item.customerName}</h3>
+        <div key={item.customerId} className={attentionCardClass(item.needsAttention)}>
+          <h3>{item.customerName}<AttentionBadge needsAttention={item.needsAttention} /></h3>
           <div className="customer-meta">
             <span>📍 {item.customerRegion}</span>
             <span>🏭 {item.customerIndustry}</span>
