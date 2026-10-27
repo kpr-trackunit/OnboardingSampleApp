@@ -254,6 +254,29 @@ header p {
   color: #dc2626;
 }
 
+/* Import all (import slice 8): one button per source and a per-entity summary */
+.button.import-all {
+  margin-top: 8px;
+}
+
+.import-step-status {
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.step-status-text.completed {
+  color: #059669;
+}
+
+.step-status-text.failed {
+  color: #dc2626;
+}
+
+.import-all-summary tr[data-status="failed"] .entity-status,
+.import-all-summary tr[data-status="skipped"] .entity-status {
+  color: #dc2626;
+}
+
 .issue-list {
   border-radius: 6px;
   padding: 12px 16px;

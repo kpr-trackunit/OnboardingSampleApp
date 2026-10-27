@@ -220,4 +220,39 @@ test.describe('Import Tab', () => {
     await expect(rows.filter({ hasText: 'debit' }).first()).toContainText('DR');
     await expect(rows.filter({ hasText: 'GBP' })).toHaveCount(0);
   });
+
+  test('Import all imports every entity and the Dashboard shows the Import step', async ({ page, request }) => {
+    // Any source whose four files all have a mapping
+    const sources = await (await request.get('/api/import/sources')).json();
+    const source = sources.find(s => s.files.length === 4 && s.files.every(f => f.importable));
+    expect(source, 'a source with all four entities mapped').toBeTruthy();
+    const customerId = await activateSourceTenant(request, source.sourceKey);
+    const customer = await (await request.get(`/api/customers/${customerId}`)).json();
+
+    await openImportTab(page);
+    await page.locator(`tr[data-source="${source.sourceKey}"]`).getByRole('button', { name: 'Import all' }).click();
+
+    const result = page.locator('.import-all-result');
+    await expect(result.locator('h3')).toHaveText(source.label);
+    const rows = result.locator('.import-all-summary tbody tr');
+    await expect(rows).toHaveCount(4);
+    await expect(rows.locator('td:first-child')).toHaveText(['clients', 'contacts', 'accounts', 'transactions']);
+    await expect(rows.locator('.entity-status')).toHaveText(['ok', 'ok', 'ok', 'ok']);
+    for (const cell of await rows.locator('.entity-imported').allInnerTexts()) {
+      expect(Number(cell)).toBeGreaterThan(0);
+    }
+
+    // Any rejected row fails the step; warnings alone don't
+    const rejected = (await rows.locator('.entity-rejected').allInnerTexts()).map(Number);
+    const expectedStep = rejected.every(n => n === 0) ? 'completed' : 'failed';
+    await expect(result.locator('.import-step-status .step-status-text')).toHaveText(expectedStep);
+
+    const onboarding = await (await request.get(`/api/customers/${customerId}/onboarding`)).json();
+    await page.getByRole('button', { name: 'Dashboard' }).click();
+    const card = page.locator('.customer-card', { has: page.locator('h3', { hasText: customer.name }) });
+    const importStep = card.locator('.checklist li', { hasText: 'Import' });
+    await expect(importStep).toContainText(expectedStep);
+    await expect(importStep.locator('.step-status')).toHaveClass(new RegExp(expectedStep));
+    await expect(card.locator('.progress-bar')).toHaveText(`${onboarding.progressPercent}%`);
+  });
 });

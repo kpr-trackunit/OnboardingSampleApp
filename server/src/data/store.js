@@ -87,6 +87,13 @@ function getSourceCustomerId(sourceKey, label) {
   return sourceCustomers[sourceKey];
 }
 
+// Links an import source to its customer, creating the customer from the source label when
+// none exists yet (import slice 8), so a new source shows in the onboarding queue and Tenant Setup
+function ensureSourceCustomer(sourceKey, label) {
+  const customerId = getSourceCustomerId(sourceKey, label);
+  return getCustomerById(customerId) || addCustomer(createCustomer({ id: customerId, name: label }));
+}
+
 // Initialize with seed data
 seedData();
 
@@ -207,6 +214,22 @@ function updateTenantStatus(customerId, status, reason) {
   }
 
   return { tenant };
+}
+
+const IMPORT_STEP_ID = 'step_4';
+
+/**
+ * Sets onboarding step 4 (Import) to a status and recalculates progressPercent.
+ * A customer without an onboarding state gets the default steps first.
+ * @param {string} customerId
+ * @param {'completed' | 'failed'} status
+ * @returns {object} The updated onboarding state
+ */
+function updateImportStep(customerId, status) {
+  const state = getOnboardingState(customerId)
+    || addOnboardingState({ customerId, steps: createDefaultOnboardingSteps(), progressPercent: 0 });
+  const steps = state.steps.map(step => (step.id === IMPORT_STEP_ID ? { ...step, status } : step));
+  return updateOnboardingState(customerId, { steps, progressPercent: calculateProgress(steps) });
 }
 
 // Merge updates into a customer's tenant. Returns the updated tenant, or null if it has none
@@ -353,11 +376,13 @@ module.exports = {
   backfillTenants,
   updateTenantStatus,
   updateTenant,
+  updateImportStep,
   getOnboardingState,
   getAllOnboardingStates,
   addOnboardingState,
   updateOnboardingState,
   getSourceCustomerId,
+  ensureSourceCustomer,
   getMappings,
   getMapping,
   saveMapping,

@@ -308,6 +308,7 @@ function ImportTab() {
   const [error, setError] = useState(null);
   const [importing, setImporting] = useState(null);
   const [result, setResult] = useState(null);
+  const [allResult, setAllResult] = useState(null);
 
   function loadSources() {
     return fetch('/api/import/sources')
@@ -345,8 +346,27 @@ function ImportTab() {
       console.error('Import failed:', err);
       setResult({ source, summary: { entity: file.entity }, records: [], error: err.message });
     } finally {
+      setAllResult(null);
       setImporting(null);
       // Importing one entity can unlock another (e.g. contacts once clients are in)
+      loadSources();
+    }
+  }
+
+  // Imports every entity of the source in dependency order and updates its Import step (slice 8)
+  async function runImportAll(source) {
+    setImporting(`${source.sourceKey}-all`);
+    try {
+      const res = await fetch(`/api/import/${source.sourceKey}/all`, { method: 'POST' });
+      const summary = await res.json();
+      if (!res.ok) throw new Error(summary.error || `HTTP ${res.status}`);
+      setAllResult({ source, summary, error: null });
+    } catch (err) {
+      console.error('Import all failed:', err);
+      setAllResult({ source, summary: null, error: err.message });
+    } finally {
+      setResult(null);
+      setImporting(null);
       loadSources();
     }
   }
@@ -391,6 +411,15 @@ function ImportTab() {
               {index === 0 && (
                 <td rowSpan={source.files.length}>
                   <span className="source-label">{source.label}</span>
+                  <div>
+                    <button
+                      className="button import-all"
+                      disabled={importing !== null || !source.tenantActive}
+                      onClick={() => runImportAll(source)}
+                    >
+                      {importing === `${source.sourceKey}-all` ? 'Importing...' : 'Import all'}
+                    </button>
+                  </div>
                   {!source.tenantActive && (
                     <p className="tenant-notice" role="status">Tenant not active yet. Finish Tenant Setup first</p>
                   )}
@@ -420,7 +449,53 @@ function ImportTab() {
         </tbody>
       </table>
 
+      {allResult && <ImportAllResult {...allResult} />}
       {result && <ImportResult {...result} />}
+    </div>
+  );
+}
+
+// Per-entity summary of an Import all run, and the Import step it set
+function ImportAllResult({ source, summary, error }) {
+  if (error) {
+    return (
+      <div className="import-result import-all-result">
+        <p style={{ color: '#dc2626' }}>⚠️ Failed to import {source.label}: {error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="import-result import-all-result">
+      <h3>{source.label}</h3>
+      <p className="import-step-status">
+        Import step: <span className={`step-status-text ${summary.importStep}`}>{summary.importStep}</span>
+        {' '}({summary.progressPercent}% onboarded)
+      </p>
+      <table className="data-table import-all-summary">
+        <thead>
+          <tr>
+            <th>Entity</th>
+            <th>Status</th>
+            <th>Imported</th>
+            <th>Rejected</th>
+            <th>Warnings</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {summary.entities.map(entity => (
+            <tr key={entity.entity} data-entity={entity.entity} data-status={entity.status}>
+              <td>{entity.entity}</td>
+              <td className="entity-status">{entity.status}</td>
+              <td className="entity-imported">{entity.imported}</td>
+              <td className="entity-rejected">{entity.rejected}</td>
+              <td className="entity-warnings">{entity.warnings}</td>
+              <td className="muted">{entity.message || ''}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }

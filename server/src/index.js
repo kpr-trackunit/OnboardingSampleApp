@@ -130,6 +130,9 @@ function handleImportError(res, err) {
   return res.status(500).json({ error: 'Import failed' });
 }
 
+// Import every entity file for a source (import slice 8); registered before the per-entity route
+app.use('/api/import', require('./routes/importAll'));
+
 // Import one entity file (e.g. clients) for a source. 409 until the tenant is active.
 app.post('/api/import/:sourceKey/:entity', requireActiveTenant(), (req, res) => {
   try {
