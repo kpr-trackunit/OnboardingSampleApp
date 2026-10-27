@@ -15,6 +15,7 @@ const { createDefaultOnboardingSteps, calculateProgress } = require('./index');
  * @property {number} progressPercent - Progress calculated from the steps (0-100)
  * @property {number} openIssueCount - Issues that aren't resolved (0 if none)
  * @property {{ id: string, name: string } | null} currentStep - The step the customer is waiting on, or null when done
+ * @property {boolean} needsAttention - True when any step has failed
  */
 
 /**
@@ -38,6 +39,7 @@ function buildQueue(customers, states, now = new Date()) {
       daysWaiting: daysWaiting(customer.createdAt, now),
       steps,
       currentStep: currentStep(steps),
+      needsAttention: needsAttention(steps),
       progressPercent: calculateProgress(steps)
     };
   });
@@ -112,4 +114,48 @@ function currentStep(steps) {
   return next ? { id: next.id, name: next.name } : null;
 }
 
-module.exports = { buildQueue, openIssueCount, summarise, daysWaiting, currentStep };
+/**
+ * A customer needs attention when any of their steps has failed.
+ * @param {import('./index').OnboardingStep[]} steps
+ * @returns {boolean}
+ */
+function needsAttention(steps) {
+  return (steps || []).some(step => step.status === 'failed');
+}
+
+/**
+ * Sort keys for the queue, compared in order: the first key that differs decides.
+ * Each key maps a row to a number; lower numbers come first.
+ * Add keys here to refine the order (e.g. waiting time, done last).
+ * @type {Array<(row: QueueRow) => number>}
+ */
+const QUEUE_SORT_KEYS = [
+  row => (row.needsAttention ? 0 : 1)
+];
+
+/**
+ * Compares two queue rows by QUEUE_SORT_KEYS.
+ * @param {QueueRow} a
+ * @param {QueueRow} b
+ * @returns {number}
+ */
+function compareQueueRows(a, b) {
+  for (const key of QUEUE_SORT_KEYS) {
+    const diff = key(a) - key(b);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+/**
+ * Returns the queue in work order: rows needing attention first. The sort is
+ * stable, so rows that compare equal keep their existing order. Does not
+ * mutate the input.
+ * @param {QueueRow[]} rows
+ * @returns {QueueRow[]}
+ */
+function sortQueue(rows) {
+  return [...(rows || [])].sort(compareQueueRows);
+}
+
+module.exports = { buildQueue, openIssueCount, summarise, daysWaiting, currentStep, needsAttention, sortQueue, compareQueueRows };

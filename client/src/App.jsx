@@ -4,6 +4,7 @@ import CustomerDetails from './components/CustomerDetails';
 import TenantSetupTab from './components/TenantSetupTab';
 import SummaryStrip from './components/SummaryStrip';
 import CurrentStepBadge from './components/CurrentStepBadge';
+import AttentionBadge, { attentionCardClass } from './components/AttentionBadge';
 
 const TABS = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -123,8 +124,8 @@ function DashboardTab() {
       <SummaryStrip />
 
       {data.map(item => (
-        <div key={item.customerId} className="customer-card">
-          <h3>{item.customerName}</h3>
+        <div key={item.customerId} className={attentionCardClass(item.needsAttention)}>
+          <h3>{item.customerName}<AttentionBadge needsAttention={item.needsAttention} /></h3>
           <CurrentStepBadge step={item.currentStep} />
           <div className="customer-meta">
             <span>📍 {item.customerRegion}</span>
