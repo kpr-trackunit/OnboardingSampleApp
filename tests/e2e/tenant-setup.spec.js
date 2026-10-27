@@ -83,11 +83,14 @@ test.describe('Tenant Setup', () => {
 
     // Dashboard step 3 mirrors failed
     await page.getByRole('button', { name: 'Dashboard' }).click();
+    // Exactly this customer; a failed step also adds a "Needs attention" badge to the heading
+    const escapedName = customerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const card = page.locator('.customer-card', {
-      has: page.getByRole('heading', { name: customerName, exact: true })
+      has: page.getByRole('heading', { name: new RegExp(`^${escapedName}\\s*(Needs attention)?$`) })
     });
     const tenantStep = card.locator('.checklist li', { hasText: 'Tenant Setup' });
     await expect(tenantStep.locator('.step-status')).toHaveClass(/failed/);
+    await expect(card.locator('.attention-badge')).toHaveText('Needs attention');
     await expect(tenantStep).toContainText('failed');
 
     // Retry goes back to provisioning and clears the reason
