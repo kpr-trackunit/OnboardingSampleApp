@@ -8,6 +8,7 @@
  * values: the region-neutral standard values a picklist field can take
  * strict: picklist with no default; an unmapped value rejects the row instead of
  *   using the default (transaction direction, account type and normalBalance)
+ * key: the field that identifies a record within a customer's file (defaults to sourceId)
  */
 
 const TARGET_FIELDS = {
@@ -21,6 +22,17 @@ const TARGET_FIELDS = {
     annualRevenue: { type: 'number' },
     industry: { type: 'text' },
     paymentTerms: { type: 'text' }
+  },
+  accounts: {
+    // Codes stay strings so Premier's 0010 keeps its leading zero
+    code: { type: 'text', required: true, key: true },
+    name: { type: 'text', required: true },
+    type: { type: 'picklist', required: true, strict: true, values: ['asset', 'liability', 'equity', 'revenue', 'expense'] },
+    subType: { type: 'text' },
+    normalBalance: { type: 'picklist', required: true, strict: true, values: ['debit', 'credit'] },
+    active: { type: 'picklist', values: [true, false] },
+    // Must be the code of another account in the same file
+    parentCode: { type: 'text' }
   }
 };
 
@@ -32,7 +44,18 @@ function getTargetFields(entity) {
   return TARGET_FIELDS[entity];
 }
 
+/**
+ * Returns the field that identifies a record within a customer's file
+ * @param {string} entity
+ * @returns {string}
+ */
+function getKeyField(entity) {
+  const fields = getTargetFields(entity) || {};
+  return Object.keys(fields).find(field => fields[field].key) || 'sourceId';
+}
+
 module.exports = {
   TARGET_FIELDS,
-  getTargetFields
+  getTargetFields,
+  getKeyField
 };

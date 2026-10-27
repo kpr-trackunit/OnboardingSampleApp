@@ -127,4 +127,31 @@ test.describe('Import Tab', () => {
     await expect(dockside).toContainText('inactive');
     await expect(dockside).toContainText('DORMANT');
   });
+
+  test('should import Premier accounts with leading zeros, standard types and the account tree', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Import', exact: true }).click();
+
+    await page.locator('tr[data-source="premier-bookkeeping"]').getByRole('button', { name: 'Import accounts' }).click();
+    await expect(page.locator('.import-result h3')).toHaveText('Premier Bookkeeping');
+    await expect(page.locator('.import-summary')).toContainText('Imported 39 accounts');
+
+    const rows = page.locator('.records-table tbody tr');
+    await expect(rows).toHaveCount(39);
+    const bank = rows.filter({ hasText: 'Bank Current Account' });
+    await expect(bank.locator('td').first()).toHaveText('0010');
+    await expect(bank).toContainText('asset');
+    await expect(bank).toContainText('Assets');
+    await expect(bank).toHaveAttribute('data-depth', '0');
+
+    // Children are listed under their parent, indented
+    await expect(rows.nth(1)).toContainText('Bank Deposit Account');
+    await expect(rows.nth(1)).toHaveAttribute('data-depth', '1');
+    await expect(rows.nth(1).locator('td.tree-child')).toHaveCount(1);
+
+    const wages = rows.filter({ hasText: 'Gross Wages' });
+    await expect(wages).toContainText('expense');
+    await expect(wages).toContainText('Overheads');
+    await expect(wages).toContainText('debit');
+  });
 });

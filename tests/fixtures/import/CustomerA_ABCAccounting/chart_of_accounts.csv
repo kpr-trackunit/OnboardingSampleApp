@@ -1,0 +1,10 @@
+Account Number,Account Name,Account Type,Sub Type,Normal Balance,Status,Description,Parent Account
+1000,Cash,Asset,Current Asset,Debit,Active,Main cash,
+1010,Petty Cash,Asset,Current Asset,Debit,Active,Small cash on hand,1000
+1100,Receivables,Asset Account,Current Asset,Debit,Active,Unmapped type,
+1110,Doubtful Debts,Asset,Contra Asset,Credit,Active,Child of a rejected account,1100
+2000,Payables,Liability,Current Liability,DR,Active,Unmapped normal balance,
+6000,Operating Expenses,Expense,Operating Expense,Debit,Active,General operating costs,
+6300,Utilities,Expense,Operating Expense,Debit,Active,Electric, gas, water,6000
+6400,Insurance,Expense,Operating Expense,Debit,Active,Business insurance,9999
+6500,Office Supplies,Expense,Operating Expense,Debit,Closed,Unmapped status,6000

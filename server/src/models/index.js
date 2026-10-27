@@ -74,6 +74,22 @@ const TENANT_REGIONS = ['North America', 'EU', 'UK', 'APAC'];
  */
 
 /**
+ * @typedef {Object} Account
+ * @property {string} id - Unique account identifier
+ * @property {string} customerId - Customer whose data this came from
+ * @property {string} code - Account code as written in the file (a string, so leading zeros are kept)
+ * @property {string} name - Account name
+ * @property {string} type - 'asset' | 'liability' | 'equity' | 'revenue' | 'expense'
+ * @property {string} typeSource - Original account type value
+ * @property {string} subType - Sub type as written by the customer
+ * @property {string} normalBalance - 'debit' | 'credit'
+ * @property {string} normalBalanceSource - Original normal balance value
+ * @property {boolean|null} active - Whether the account is in use
+ * @property {string} activeSource - Original active flag value
+ * @property {string} parentCode - Code of the parent account in the same file, or '' for a top-level account
+ */
+
+/**
  * @typedef {Object} ValueMap
  * @property {Object<string, string>} map - Source value → standard value
  * @property {string|null} default - Standard value used when a source value isn't mapped
@@ -230,6 +246,28 @@ function createClient(data) {
 }
 
 /**
+ * Creates a new Account object
+ * @param {Partial<Account>} data
+ * @returns {Account}
+ */
+function createAccount(data) {
+  return {
+    id: data.id || `account_${data.customerId}_${data.code}`,
+    customerId: data.customerId || '',
+    code: data.code === undefined || data.code === null ? '' : String(data.code),
+    name: data.name || '',
+    type: data.type || null,
+    typeSource: data.typeSource || '',
+    subType: data.subType || '',
+    normalBalance: data.normalBalance || null,
+    normalBalanceSource: data.normalBalanceSource || '',
+    active: data.active ?? null,
+    activeSource: data.activeSource || '',
+    parentCode: data.parentCode === undefined || data.parentCode === null ? '' : String(data.parentCode)
+  };
+}
+
+/**
  * Creates a new Mapping object
  * @param {Partial<Mapping>} data
  * @returns {Mapping}
@@ -278,5 +316,6 @@ module.exports = {
   canTransitionTenant,
   createClient,
   createMapping,
-  createImportRun
+  createImportRun,
+  createAccount
 };

@@ -7,17 +7,31 @@
 const fs = require('fs');
 const path = require('path');
 const store = require('../data/store');
-const { createClient, createImportRun } = require('../models');
+const { createClient, createImportRun, createAccount } = require('../models');
 const { DEFAULT_DATA_DIR, listSources, getSource } = require('./sources');
 const { parseCsv } = require('./csv');
 const { transformRow } = require('./transform');
 const { rejoinOverflow } = require('./overflow');
 const { detectDateFormat } = require('./normalizers');
-const { getTargetFields } = require('../models/targetFields');
+const { getTargetFields, getKeyField } = require('../models/targetFields');
+const { checkParents } = require('./hierarchy');
 
-// How each entity is created and stored
+// How each entity is created and stored. An optional checkFile(accepted, all, mapping)
+// runs once every row is transformed, for rules that span rows; it returns
+// { accepted, errors } where each error carries the row's line.
 const ENTITIES = {
   clients: { create: createClient, save: store.saveClients, list: store.getClients }
+};
+
+ENTITIES.accounts = {
+  create: createAccount,
+  save: store.saveAccounts,
+  list: store.getAccounts,
+  checkFile: (accepted, all, mapping) => checkParents(accepted, all, {
+    keyField: 'code',
+    parentField: 'parentCode',
+    parentColumn: mapping.columns.parentCode || null
+  })
 };
 
 let runCount = 0;
@@ -118,18 +132,21 @@ function importEntity(sourceKey, entity, { dataDir = DEFAULT_DATA_DIR } = {}) {
   });
 
   const mapping = withDetectedDateFormat(storedMapping, keyedRows.map(({ row }) => row));
-  const idColumn = mapping.columns.sourceId;
+  const keyField = getKeyField(entity);
+  const idColumn = mapping.columns[keyField];
   const seenIds = new Set();
-  const records = [];
+  const transformed = [];
+  let accepted = [];
 
   keyedRows.forEach(({ line, row }) => {
     const result = transformRow(row, mapping);
     const rowErrors = result.errors.map(issue => atRow(line, issue));
+    transformed.push({ line, record: result.record });
 
-    const { sourceId } = result.record;
+    const sourceId = result.record[keyField];
     if (sourceId && seenIds.has(sourceId)) {
       rowErrors.push(atRow(line, {
-        field: 'sourceId',
+        field: keyField,
         column: idColumn,
         value: sourceId,
         message: `\`${idColumn}\` '${sourceId}' appears more than once in the file`
@@ -141,8 +158,18 @@ function importEntity(sourceKey, entity, { dataDir = DEFAULT_DATA_DIR } = {}) {
       return;
     }
     seenIds.add(sourceId);
-    warnings.push(...result.warnings.map(issue => atRow(line, issue)));
-    records.push(ENTITIES[entity].create({ ...result.record, customerId: source.customerId }));
+    accepted.push({ line, record: result.record, warnings: result.warnings });
+  });
+
+  if (ENTITIES[entity].checkFile) {
+    const checked = ENTITIES[entity].checkFile(accepted, transformed, mapping);
+    errors.push(...checked.errors.map(({ line, ...issue }) => atRow(line, issue)));
+    accepted = checked.accepted;
+  }
+
+  const records = accepted.map(({ line, record, warnings: rowWarnings }) => {
+    warnings.push(...rowWarnings.map(issue => atRow(line, issue)));
+    return ENTITIES[entity].create({ ...record, customerId: source.customerId });
   });
 
   ENTITIES[entity].save(records);
