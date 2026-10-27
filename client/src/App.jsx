@@ -77,9 +77,7 @@ function App() {
         {activeTab === 'tenant-setup' && (
           <TenantSetupTab customers={customers} onSaved={loadCustomers} />
         )}
-        {activeTab === 'import' && (
-          <PlaceholderTab title="Import" description="Import customer data into the platform" />
-        )}
+        {activeTab === 'import' && <ImportTab />}
       </main>
     </div>
   );
@@ -472,6 +470,76 @@ function Checklist({ steps }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+function ImportTab() {
+  const [sources, setSources] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetch('/api/import/sources')
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        setSources(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Failed to fetch import sources:', err);
+        setError(err.message);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return <div className="placeholder"><p>Loading...</p></div>;
+  }
+
+  if (error) {
+    return (
+      <div className="placeholder">
+        <p style={{ color: '#dc2626' }}>⚠️ Failed to load import sources</p>
+        <p style={{ fontSize: '0.85rem', color: '#6b7280' }}>{error}</p>
+      </div>
+    );
+  }
+
+  if (sources.length === 0) {
+    return <div className="placeholder"><p>No customer data waiting to be imported</p></div>;
+  }
+
+  return (
+    <div>
+      <h2>Import</h2>
+      <p style={{ color: '#6b7280', marginBottom: '20px' }}>
+        {sources.length} source(s) with data waiting to be imported
+      </p>
+
+      <table className="data-table sources-table">
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th>Entity</th>
+            <th>File</th>
+            <th>Rows</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sources.map(source => source.files.map((file, index) => (
+            <tr key={`${source.sourceKey}-${file.entity}`} data-source={source.sourceKey}>
+              {index === 0 && <td rowSpan={source.files.length} className="source-label">{source.label}</td>}
+              <td>{file.entity}</td>
+              <td><code>{file.filename}</code></td>
+              <td>{file.rowCount} rows</td>
+            </tr>
+          )))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 

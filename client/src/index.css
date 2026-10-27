@@ -169,3 +169,32 @@ header p {
   color: #6b7280;
   font-size: 0.9rem;
 }
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.data-table th,
+.data-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid #f3f4f6;
+  vertical-align: top;
+}
+
+.data-table th {
+  color: #6b7280;
+  font-weight: 500;
+  background: #f9fafb;
+}
+
+.data-table code {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.source-label {
+  font-weight: 500;
+}
