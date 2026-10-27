@@ -372,7 +372,14 @@ function ImportTab() {
         <tbody>
           {sources.map(source => source.files.map((file, index) => (
             <tr key={`${source.sourceKey}-${file.entity}`} data-source={source.sourceKey}>
-              {index === 0 && <td rowSpan={source.files.length} className="source-label">{source.label}</td>}
+              {index === 0 && (
+                <td rowSpan={source.files.length}>
+                  <span className="source-label">{source.label}</span>
+                  {!source.tenantActive && (
+                    <p className="tenant-notice" role="status">Tenant not active yet. Finish Tenant Setup first</p>
+                  )}
+                </td>
+              )}
               <td>{file.entity}</td>
               <td><code>{file.filename}</code></td>
               <td>{file.rowCount} rows</td>
@@ -380,7 +387,7 @@ function ImportTab() {
                 {file.importable ? (
                   <button
                     className="button"
-                    disabled={importing !== null}
+                    disabled={importing !== null || !source.tenantActive}
                     onClick={() => runImport(source, file)}
                   >
                     {importing === `${source.sourceKey}-${file.entity}` ? 'Importing...' : `Import ${file.entity}`}
